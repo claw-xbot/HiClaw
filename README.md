@@ -84,7 +84,7 @@ Every Room contains Human + Manager + Worker. The human can intervene at any tim
 | **LLM access** | Each agent holds its own API key | Unified AI Gateway with per-agent consumer tokens |
 | **Tool credentials** | Each agent holds real credentials | Centralized at gateway -- agents never see real credentials |
 | **Permission control** | Per-agent config | Manager grants/revokes MCP Server access per Worker |
-| **Rotation** | Manual edit + restart | Automated dual-credential sliding window, zero downtime |
+| **Credential update** | Manual edit + restart | Manager updates config in MinIO, Worker hot-reloads automatically |
 
 Workers only hold their own consumer tokens. Even a compromised Worker cannot access upstream API credentials.
 

@@ -89,7 +89,7 @@ The Manager Agent coordinates the entire team:
 - Creates Workers (Matrix accounts + Higress consumers + config files)
 - Assigns and tracks tasks
 - Runs heartbeat checks every 15 minutes
-- Manages credentials with dual-key sliding window rotation
+- Manages credentials and access control
 
 ### Worker Agent (OpenClaw)
 

@@ -46,30 +46,17 @@ curl -X POST http://127.0.0.1:8001/v1/consumers \
   }'
 ```
 
-### Update Consumer (e.g., credential rotation with dual-key sliding window)
+### Update Consumer (e.g., replace credential key)
 
 ```bash
-# Step 1: GET current consumer
-CONSUMER=$(curl -s http://127.0.0.1:8001/v1/consumers/worker-alice -b "${HIGRESS_COOKIE_FILE}")
-
-# Step 2: Add new key alongside old one (dual-key window)
+# GET-modify-PUT pattern (consumers do NOT have a version field)
 NEW_KEY=$(openssl rand -hex 32)
-OLD_KEY=$(echo $CONSUMER | jq -r '.credentials[0].values[0]')
-UPDATED=$(echo $CONSUMER | jq --arg new "$NEW_KEY" --arg old "$OLD_KEY" \
-  '.credentials[0].values = [$new, $old]')
-
-# Step 3: PUT full object back
+CONSUMER=$(curl -s http://127.0.0.1:8001/v1/consumers/worker-alice -b "${HIGRESS_COOKIE_FILE}")
+UPDATED=$(echo $CONSUMER | jq --arg new "$NEW_KEY" '.credentials[0].values = [$new]')
 curl -X PUT http://127.0.0.1:8001/v1/consumers/worker-alice \
   -b "${HIGRESS_COOKIE_FILE}" \
   -H 'Content-Type: application/json' \
   -d "$UPDATED"
-
-# Step 4: After Worker confirms new key works, remove old key
-FINAL=$(echo $CONSUMER | jq --arg new "$NEW_KEY" '.credentials[0].values = [$new]')
-curl -X PUT http://127.0.0.1:8001/v1/consumers/worker-alice \
-  -b "${HIGRESS_COOKIE_FILE}" \
-  -H 'Content-Type: application/json' \
-  -d "$FINAL"
 ```
 
 ### Delete Consumer

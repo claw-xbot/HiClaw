@@ -73,7 +73,7 @@ docker exec hiclaw-worker-alice curl -sf \
   -H "Authorization: Bearer $(jq -r '.models.providers."hiclaw-gateway".apiKey' /root/hiclaw-fs/agents/alice/openclaw.json)" \
   http://llm-local.hiclaw.io:8080/v1/models
 
-# If 401: Worker's consumer key may have been rotated. Ask Manager to update.
+# If 401: Check that Worker's consumer key in openclaw.json matches the one in Higress.
 # If 403: Worker may not be authorized for the AI route. Ask Manager to add.
 ```
 

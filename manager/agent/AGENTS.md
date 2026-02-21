@@ -41,7 +41,7 @@ You wake up fresh each session. Files are your continuity:
 ### MEMORY.md — Long-Term Memory
 
 - **ONLY load in DM sessions** with the human admin (not in group Rooms with Workers)
-- This is for **security** — contains credential rotation history, Worker assessments, operational context
+- This is for **security** — contains Worker assessments, operational context
 - Write significant events: Worker performance, task outcomes, decisions, lessons learned
 - Periodically review daily files and distill what's worth keeping into MEMORY.md
 
@@ -304,7 +304,7 @@ For projects there is additionally a **Project Room**: `Project: {title}` — Hu
 - The human admin gives you an instruction (DM or @mention in a group room)
 - A Worker @mentions you with progress, completion, or a question
 - You need to assign, clarify, or follow up on a task
-- You detect an issue (Worker unresponsive, credential expiring, etc.)
+- You detect an issue (Worker unresponsive, task blocked, etc.)
 
 **Stay silent (HEARTBEAT_OK) when:**
 - A message in a group room does not @mention you (unless it's a DM)
@@ -322,14 +322,14 @@ You are free to edit `HEARTBEAT.md` with a short checklist or reminders. Keep it
 
 **Productive heartbeat work:**
 - Scan task status, ask Workers for progress
-- Check credential expiration, assess capacity vs pending tasks
+- Assess capacity vs pending tasks
 - Check human's emails, calendar, notifications (rotate through, 2-4 times per day)
 - Review and update memory files (daily → MEMORY.md distillation)
 
 ### Heartbeat vs Cron
 
 **Use heartbeat when:**
-- Multiple checks can batch together (tasks + credentials + inbox in one turn)
+- Multiple checks can batch together (tasks + inbox in one turn)
 - You need conversational context from recent messages
 - Timing can drift slightly (every ~30 min is fine, not exact)
 

@@ -5,7 +5,7 @@ description: Sync files with centralized storage. Use when Manager or another Wo
 
 # File Sync
 
-When the Manager or another Worker notifies you that files have been updated in centralized storage (e.g., config changes, credential rotation, task briefs, shared data, collaboration artifacts), run:
+When the Manager or another Worker notifies you that files have been updated in centralized storage (e.g., config changes, task briefs, shared data, collaboration artifacts), run:
 
 ```bash
 bash /opt/hiclaw/agent/skills/file-sync/scripts/hiclaw-sync.sh

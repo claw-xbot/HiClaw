@@ -239,47 +239,19 @@ In your DM with Manager, send:
 
 ---
 
-## Step 7: Credential Rotation
+## Step 7: GitHub Operations via MCP
 
-**POC Case 7: Credential smooth rotation**
-
-### 7.1 Request rotation
-
-In your DM with Manager, send:
-
-> Please rotate Alice's gateway credentials using the dual-key sliding window approach.
-
-### 7.2 Observe rotation process
-
-1. Manager generates a new key
-2. Manager adds new key alongside old key (dual-key window)
-3. Manager updates Alice's config file in MinIO
-4. Alice picks up new config (file-watch, ~300ms)
-5. Manager verifies Alice can authenticate with new key
-6. Manager removes old key
-
-### Verification Checklist
-
-- [ ] Higress consumer `worker-alice` temporarily has 2 credential values
-- [ ] Alice's `openclaw.json` in MinIO is updated with new key
-- [ ] Alice continues working without interruption
-- [ ] After transition, consumer has only the new key
-
----
-
-## Step 8: GitHub Operations via MCP
-
-**POC Case 8: GitHub code operations**
+**POC Case 7: GitHub code operations**
 
 > **Note**: This step requires a GitHub PAT to be configured during Manager installation.
 
-### 8.1 Assign GitHub task
+### 7.1 Assign GitHub task
 
 In Alice's Room, send:
 
 > Alice, please perform these GitHub operations: 1) Read the README.md of our test repo, 2) Create a branch named 'feature/alice-update', 3) Create a new file docs/quickstart-update.md, 4) Create a Pull Request.
 
-### 8.2 Observe MCP tool calls
+### 7.2 Observe MCP tool calls
 
 Alice uses `mcporter` to call the GitHub MCP Server hosted by Higress. The MCP Server holds the GitHub PAT centrally -- Alice never sees it.
 
@@ -293,11 +265,11 @@ Alice uses `mcporter` to call the GitHub MCP Server hosted by Higress. The MCP S
 
 ---
 
-## Step 9: Multi-Worker GitHub Collaboration
+## Step 8: Multi-Worker GitHub Collaboration
 
-**POC Case 9: Alice and Bob collaborate on GitHub**
+**POC Case 8: Alice and Bob collaborate on GitHub**
 
-### 9.1 Assign collaborative GitHub task
+### 8.1 Assign collaborative GitHub task
 
 In your DM with Manager, send:
 
@@ -312,27 +284,27 @@ In your DM with Manager, send:
 
 ---
 
-## Step 10: Dynamic MCP Permission Control
+## Step 9: Dynamic MCP Permission Control
 
-**POC Case 10: MCP permission revoke and restore**
+**POC Case 9: MCP permission revoke and restore**
 
-### 10.1 Revoke Alice's GitHub access
+### 9.1 Revoke Alice's GitHub access
 
 In your DM with Manager, send:
 
 > Revoke Alice's access to the GitHub MCP Server.
 
-### 10.2 Verify revocation
+### 9.2 Verify revocation
 
 Ask Alice to perform a GitHub operation. She should get a 403 error.
 
-### 10.3 Restore access
+### 9.3 Restore access
 
 In your DM with Manager, send:
 
 > Restore Alice's access to the GitHub MCP Server.
 
-### 10.4 Verify restoration
+### 9.4 Verify restoration
 
 Ask Alice to perform a GitHub operation again. It should succeed.
 

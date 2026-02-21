@@ -1,13 +1,13 @@
 ---
 name: worker-management
-description: Manage the full lifecycle of Worker Agents (create, configure, monitor, credential rotation, reset). Use when the human admin requests creating a new worker, rotating credentials, or resetting a worker.
+description: Manage the full lifecycle of Worker Agents (create, configure, monitor, reset). Use when the human admin requests creating a new worker or resetting a worker.
 ---
 
 # Worker Management
 
 ## Overview
 
-This skill allows you to manage the full lifecycle of Worker Agents: creation, configuration, monitoring, credential rotation, and reset. Workers are lightweight containers that connect to the Manager via Matrix and use the centralized file system.
+This skill allows you to manage the full lifecycle of Worker Agents: creation, configuration, monitoring, and reset. Workers are lightweight containers that connect to the Manager via Matrix and use the centralized file system.
 
 ## Create a Worker
 
@@ -114,8 +114,7 @@ The heartbeat prompt triggers automatically. When it fires:
 2. For each in-progress task, read `assigned_to` and `room_id` from its meta.json
 3. Ask the assigned Worker for status in their Room
 4. If a Worker confirms completion, update the task's meta.json: `"status": "completed"`, fill in `completed_at`
-5. Check credential expiration
-6. Assess capacity vs pending tasks (count `"status": "assigned"` tasks vs idle Workers)
+5. Assess capacity vs pending tasks (count `"status": "assigned"` tasks vs idle Workers)
 
 ### Manual Status Check
 
@@ -129,20 +128,6 @@ done
 curl -s "http://127.0.0.1:6167/_matrix/client/v3/rooms/<ROOM_ID>/messages?dir=b&limit=5" \
   -H "Authorization: Bearer <MANAGER_TOKEN>" | jq '.chunk[].content.body'
 ```
-
-## Credential Rotation
-
-Uses dual-key sliding window to prevent downtime:
-
-1. Generate new key
-2. Add new key alongside old key (Consumer has 2 values)
-3. Update Worker's config file in MinIO (`~/hiclaw-fs/agents/<WORKER_NAME>/openclaw.json`)
-4. **Notify the Worker in their Room**: send a message asking them to sync config (e.g., "Please sync your configuration now — credentials have been updated.")
-5. Worker runs `hiclaw-sync` and OpenClaw hot-reloads (~300ms after file change)
-6. Verify Worker can auth with new key
-7. Remove old key from Consumer
-
-See `higress-gateway-management` SKILL.md for the exact API calls.
 
 ## Reset a Worker
 
@@ -226,5 +211,5 @@ After pushing skills, the script notifies the affected Worker(s) via Matrix @men
 - Workers are **stateless containers** -- all state is in MinIO. Resetting a Worker just means recreating its config files
 - Worker Matrix accounts persist in Tuwunel (cannot be deleted via API). Reuse same username on reset
 - OpenClaw config hot-reload: file-watch (~300ms) or `config.patch` API
-- **File sync**: after writing any file that a Worker (or another Worker) needs to read, always notify the target Worker via Matrix to run `hiclaw-sync`. This applies to config updates, credential rotation, task briefs, shared data, and cross-Worker collaboration artifacts. Workers have a `file-sync` skill for this. Background periodic sync (every 5 minutes) serves as fallback only
+- **File sync**: after writing any file that a Worker (or another Worker) needs to read, always notify the target Worker via Matrix to run `hiclaw-sync`. This applies to config updates, task briefs, shared data, and cross-Worker collaboration artifacts. Workers have a `file-sync` skill for this. Background periodic sync (every 5 minutes) serves as fallback only
 - **Skills are Manager-controlled**: Workers cannot modify their own skills (local→remote sync excludes `skills/**`). Only Manager can push skill changes via `push-worker-skills.sh`
