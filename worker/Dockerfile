@@ -17,7 +17,20 @@ FROM ${HIGRESS_REGISTRY}/higress/mc:20260216 AS mc
 # ============ Stage 2: OpenClaw + mcporter build ============
 FROM ${HIGRESS_REGISTRY}/higress/node:20-slim AS openclaw-build
 
+# Build args (must be declared BEFORE any RUN that uses them)
 ARG APT_MIRROR=mirrors.aliyun.com
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+
+# Set proxy as environment variables to ensure all tools can use them
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    http_proxy=${http_proxy} \
+    https_proxy=${https_proxy}
+
 RUN if [ -n "${APT_MIRROR}" ]; then \
         sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
         sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
@@ -29,7 +42,7 @@ RUN if [ -n "${APT_MIRROR}" ]; then \
 RUN git clone https://github.com/johnlanni/openclaw.git /opt/openclaw && \
     cd /opt/openclaw && git checkout 837631055cf89b9cf5cece8ee07405b910173a38
 
-RUN cd /opt/openclaw && pnpm install && pnpm build
+RUN cd /opt/openclaw && pnpm config set registry ${NPM_REGISTRY} && pnpm install && pnpm build
 
 RUN npm install -g mcporter
 
