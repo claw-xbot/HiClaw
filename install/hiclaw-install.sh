@@ -146,6 +146,109 @@ wait_manager_ready() {
     error "Manager agent did not become ready within ${timeout}s. Check: docker logs ${container}"
 }
 
+# ============================================================
+# Send welcome message to Manager
+# ============================================================
+
+send_welcome_message() {
+    local admin_user="${HICLAW_ADMIN_USER:-admin}"
+    local admin_password="${HICLAW_ADMIN_PASSWORD}"
+    local matrix_domain="${HICLAW_MATRIX_DOMAIN}"
+    local matrix_url="http://${matrix_domain%%:*}:${HICLAW_PORT_GATEWAY:-18080}"
+    local manager_user="manager"
+    local manager_full_id="@${manager_user}:${matrix_domain}"
+    local timezone="${HICLAW_TIMEZONE}"
+    
+    # Login to get admin access token
+    log "Logging in as ${admin_user} to send welcome message..."
+    local login_resp
+    login_resp=$(curl -sf -X POST "${matrix_url}/_matrix/client/v3/login" \
+        -H 'Content-Type: application/json' \
+        -d "{\"type\":\"m.login.password\",\"identifier\":{\"type\":\"m.id.user\",\"user\":\"${admin_user}\"},\"password\":\"${admin_password}\"}" 2>/dev/null) || return 1
+    
+    local access_token
+    access_token=$(echo "${login_resp}" | jq -r '.access_token // empty')
+    if [ -z "${access_token}" ]; then
+        log "WARNING: Failed to login as ${admin_user}, skipping welcome message"
+        return 1
+    fi
+    
+    # Find or create DM room with manager
+    log "Finding DM room with Manager..."
+    local rooms
+    rooms=$(curl -sf "${matrix_url}/_matrix/client/v3/joined_rooms" \
+        -H "Authorization: Bearer ${access_token}" 2>/dev/null | jq -r '.joined_rooms[]' 2>/dev/null) || true
+    
+    local room_id=""
+    for rid in ${rooms}; do
+        local members
+        members=$(curl -sf "${matrix_url}/_matrix/client/v3/rooms/${rid}/members" \
+            -H "Authorization: Bearer ${access_token}" 2>/dev/null | jq -r '.chunk[].state_key' 2>/dev/null) || continue
+        local member_count
+        member_count=$(echo "${members}" | wc -l | xargs)
+        if [ "${member_count}" = "2" ] && echo "${members}" | grep -q "@${manager_user}:"; then
+            room_id="${rid}"
+            break
+        fi
+    done
+    
+    if [ -z "${room_id}" ]; then
+        log "Creating DM room with Manager..."
+        local create_resp
+        create_resp=$(curl -sf -X POST "${matrix_url}/_matrix/client/v3/createRoom" \
+            -H "Authorization: Bearer ${access_token}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"is_direct\":true,\"invite\":[\"${manager_full_id}\"],\"preset\":\"trusted_private_chat\"}" 2>/dev/null) || return 1
+        room_id=$(echo "${create_resp}" | jq -r '.room_id // empty')
+    fi
+    
+    if [ -z "${room_id}" ]; then
+        log "WARNING: Could not find or create DM room with Manager"
+        return 1
+    fi
+    
+    # Wait for Manager to join the room
+    log "Waiting for Manager to join the room..."
+    local wait_elapsed=0
+    local wait_timeout=60
+    while [ "${wait_elapsed}" -lt "${wait_timeout}" ]; do
+        local members
+        members=$(curl -sf "${matrix_url}/_matrix/client/v3/rooms/${room_id}/members" \
+            -H "Authorization: Bearer ${access_token}" 2>/dev/null | jq -r '.chunk[].state_key' 2>/dev/null) || true
+        if echo "${members}" | grep -q "${manager_full_id}"; then
+            break
+        fi
+        sleep 2
+        wait_elapsed=$((wait_elapsed + 2))
+    done
+    
+    # Send welcome message
+    log "Sending welcome message to Manager..."
+    local welcome_msg
+    welcome_msg="Hello Manager! This is an automated message from the HiClaw installation script.
+
+You have just completed the installation and initialization. As the Manager agent, please:
+
+1. Output a warm welcome message introducing your capabilities to the human admin
+2. Based on the current timezone (${timezone}), identify the likely country/region of the admin
+3. Ask the admin in their likely local language (if detectable, otherwise use English) how you can help them
+4. Remember the admin's preferred language for all future interactions with them, with workers, and for instructions you give to workers in project rooms
+
+The human admin will start chatting with you shortly. Please wait for their response before proceeding with any tasks."
+
+    local txn_id="welcome-$(date +%s%N)"
+    curl -sf -X PUT "${matrix_url}/_matrix/client/v3/rooms/${room_id}/send/m.room.message/${txn_id}" \
+        -H "Authorization: Bearer ${access_token}" \
+        -H 'Content-Type: application/json' \
+        -d "{\"msgtype\":\"m.text\",\"body\":\"${welcome_msg}\"}" > /dev/null 2>&1 || {
+        log "WARNING: Failed to send welcome message"
+        return 1
+    }
+    
+    log "Welcome message sent to Manager"
+    return 0
+}
+
 # Prompt for a value interactively, but skip if env var is already set.
 # In non-interactive mode, uses default or errors if required and no default.
 # Usage: prompt VAR_NAME "Prompt text" "default" [true=secret]
@@ -654,6 +757,9 @@ EOF
 
     # Wait for Manager agent to be ready
     wait_manager_ready "hiclaw-manager"
+
+    # Send welcome message to Manager
+    send_welcome_message
 
     log ""
     log "=== HiClaw Manager Started! ==="
