@@ -38,13 +38,67 @@ HICLAW_NON_INTERACTIVE="${HICLAW_NON_INTERACTIVE:-0}"
 HICLAW_MOUNT_SOCKET="${HICLAW_MOUNT_SOCKET:-1}"
 
 # ============================================================
+# Utility functions (needed early for timezone detection)
+# ============================================================
+
+log() {
+    echo -e "\033[36m[HiClaw]\033[0m $1"
+}
+
+error() {
+    echo -e "\033[31m[HiClaw ERROR]\033[0m $1" >&2
+    exit 1
+}
+
+# ============================================================
+# Timezone detection (compatible with Linux and macOS)
+# ============================================================
+
+detect_timezone() {
+    local tz=""
+    
+    # Try /etc/timezone (Debian/Ubuntu)
+    if [ -f /etc/timezone ]; then
+        tz=$(cat /etc/timezone 2>/dev/null | tr -d '[:space:]')
+    fi
+    
+    # Try /etc/localtime symlink (macOS and some Linux)
+    if [ -z "${tz}" ] && [ -L /etc/localtime ]; then
+        tz=$(ls -l /etc/localtime 2>/dev/null | sed 's|.*/zoneinfo/||')
+    fi
+    
+    # Try timedatectl (systemd)
+    if [ -z "${tz}" ]; then
+        tz=$(timedatectl show --value -p Timezone 2>/dev/null)
+    fi
+    
+    # If still not detected, warn and prompt user
+    if [ -z "${tz}" ]; then
+        echo ""
+        echo -e "\033[33m[HiClaw WARNING]\033[0m Could not detect timezone automatically."
+        echo -e "\033[33m[HiClaw]\033[0m Please enter your timezone (e.g., Asia/Shanghai, America/New_York)."
+        echo ""
+        if [ "${HICLAW_NON_INTERACTIVE}" = "1" ]; then
+            tz="Asia/Shanghai"
+            log "Using default timezone: ${tz}"
+        else
+            read -p "Timezone [Asia/Shanghai]: " tz
+            tz="${tz:-Asia/Shanghai}"
+        fi
+    fi
+    
+    echo "${tz}"
+}
+
+# Detect timezone once at startup (used by registry selection and container TZ)
+HICLAW_TIMEZONE="${HICLAW_TIMEZONE:-$(detect_timezone)}"
+
+# ============================================================
 # Registry selection based on timezone
 # ============================================================
 
 detect_registry() {
-    local tz
-    tz="$(cat /etc/timezone 2>/dev/null | tr -d '[:space:]' || \
-          timedatectl show --value -p Timezone 2>/dev/null || echo UTC)"
+    local tz="${HICLAW_TIMEZONE}"
 
     case "${tz}" in
         America/*)
@@ -66,16 +120,30 @@ MANAGER_IMAGE="${HICLAW_INSTALL_MANAGER_IMAGE:-${HICLAW_REGISTRY}/higress/hiclaw
 WORKER_IMAGE="${HICLAW_INSTALL_WORKER_IMAGE:-${HICLAW_REGISTRY}/higress/hiclaw-worker:${HICLAW_VERSION}}"
 
 # ============================================================
-# Utility functions
+# Wait for Manager agent to be ready
+# Uses `openclaw gateway health` inside the container to confirm the gateway is running
 # ============================================================
 
-log() {
-    echo -e "\033[36m[HiClaw]\033[0m $1"
-}
-
-error() {
-    echo -e "\033[31m[HiClaw ERROR]\033[0m $1" >&2
-    exit 1
+wait_manager_ready() {
+    local timeout="${HICLAW_READY_TIMEOUT:-300}"
+    local elapsed=0
+    local container="${1:-hiclaw-manager}"
+    
+    log "Waiting for Manager agent to be ready (timeout: ${timeout}s)..."
+    
+    # Wait for OpenClaw gateway to be healthy inside the container
+    while [ "${elapsed}" -lt "${timeout}" ]; do
+        if docker exec "${container}" openclaw gateway health --json 2>/dev/null | grep -q '"ok"' 2>/dev/null; then
+            log "Manager agent is ready!"
+            return 0
+        fi
+        sleep 5
+        elapsed=$((elapsed + 5))
+        printf "\r\033[36m[HiClaw]\033[0m Waiting... (%ds/%ds)" "${elapsed}" "${timeout}"
+    done
+    
+    echo ""
+    error "Manager agent did not become ready within ${timeout}s. Check: docker logs ${container}"
 }
 
 # Prompt for a value interactively, but skip if env var is already set.
@@ -540,9 +608,7 @@ EOF
     WORKSPACE_MOUNT_ARGS="-v ${HICLAW_WORKSPACE_DIR}:/root/manager-workspace"
 
     # Pass host timezone to container so date/time commands reflect local time
-    HOST_TZ="$(cat /etc/timezone 2>/dev/null | tr -d '[:space:]' || \
-               timedatectl show --value -p Timezone 2>/dev/null || echo UTC)"
-    TZ_ARGS="-e TZ=${HOST_TZ}"
+    TZ_ARGS="-e TZ=${HICLAW_TIMEZONE}"
 
     # Host directory mount: for file sharing with agents (defaults to user's home)
     if [ "${HICLAW_NON_INTERACTIVE}" != "1" ] && [ -z "${HICLAW_HOST_SHARE_DIR}" ]; then
@@ -585,6 +651,9 @@ EOF
         ${HOST_SHARE_MOUNT_ARGS} \
         --restart unless-stopped \
         "${MANAGER_IMAGE}"
+
+    # Wait for Manager agent to be ready
+    wait_manager_ready "hiclaw-manager"
 
     log ""
     log "=== HiClaw Manager Started! ==="
