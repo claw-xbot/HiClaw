@@ -174,6 +174,16 @@ Alice：前端校验也更新了。
 | MinIO | 集中式文件存储，Worker 无状态 |
 | OpenClaw | 带 Matrix 插件和技能系统的 Agent 运行时 |
 
+## 常见问题
+
+如果 Manager 容器启动失败，执行以下命令查看具体原因：
+
+```bash
+docker exec -it hiclaw-manager cat /var/log/hiclaw/manager-agent.log
+```
+
+欢迎[提交 Issue](https://github.com/higress-group/hiclaw/issues)，或在 [Discord](https://discord.gg/n6mV8xEYUF) / 钉钉群里随时提问。
+
 ## 文档
 
 | | |

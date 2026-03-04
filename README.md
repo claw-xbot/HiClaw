@@ -174,6 +174,16 @@ No black boxes. No hidden agent-to-agent calls.
 | MinIO | Centralized file storage, Workers are stateless |
 | OpenClaw | Agent runtime with Matrix plugin and skills |
 
+## Troubleshooting
+
+If the Manager container fails to start, check the agent log for details:
+
+```bash
+docker exec -it hiclaw-manager cat /var/log/hiclaw/manager-agent.log
+```
+
+Feel free to [open an issue](https://github.com/higress-group/hiclaw/issues) or ask in [Discord](https://discord.gg/n6mV8xEYUF) / DingTalk group.
+
 ## Documentation
 
 | | |
