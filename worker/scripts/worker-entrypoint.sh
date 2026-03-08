@@ -31,6 +31,12 @@ HICLAW_ROOT="/root/hiclaw-fs"
 WORKSPACE="${HICLAW_ROOT}/agents/${WORKER_NAME}"
 
 # ============================================================
+# Step 0.5: Start cron daemon
+# ============================================================
+cron
+log "Cron daemon started"
+
+# ============================================================
 # Step 1: Configure mc alias for centralized file system
 # ============================================================
 log "Configuring mc alias..."
