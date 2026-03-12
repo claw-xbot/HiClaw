@@ -187,11 +187,11 @@ log_info "Waiting for Manager to post completion message in project room (timeou
 # First check if completion message was already posted
 COMPLETION_MSG=$(matrix_read_messages "${MANAGER_TOKEN}" "${PROJECT_ROOM}" 50 2>/dev/null | \
     jq -r --arg u "@manager" '[.chunk[] | select(.sender | startswith($u)) | .content.body] | .[]' 2>/dev/null | \
-    grep -iE "complete|done|finished|all.*phase|phase.*4|PHASE4" | head -1 || true)
+    grep -iE "complete|done|finished|已完成|完成|all.*phase|phase.*4|PHASE4" | head -1 || true)
 
 if [ -z "${COMPLETION_MSG}" ]; then
     COMPLETION_MSG=$(matrix_wait_for_message_containing "${MANAGER_TOKEN}" "${PROJECT_ROOM}" "@manager" \
-        "complete\|done\|finished\|all.*phase\|phase.*4\|PHASE4" 1800 2>/dev/null || true)
+        "complete\|done\|finished\|已完成\|完成\|all.*phase\|phase.*4\|PHASE4" 1800 2>/dev/null || true)
 fi
 
 assert_not_empty "${COMPLETION_MSG}" "Manager posted completion message in project room"
