@@ -61,10 +61,10 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Pull base images
-        run: docker pull higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/openclaw-base:latest
+        run: docker pull higress-registry.us-west-1.cr.aliyuncs.com/higress/openclaw-base:latest
 
       - name: Build images
-        run: make build-manager build-worker VERSION=ci-test
+        run: make build-manager build-worker VERSION=ci-test HIGRESS_REGISTRY=higress-registry.us-west-1.cr.aliyuncs.com
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y jq curl unzip
@@ -253,8 +253,8 @@ jobs:
       - name: Build images from source (tag push)
         if: steps.version.outputs.from_dispatch == 'false'
         run: |
-          docker pull higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/openclaw-base:latest
-          make build-manager build-worker VERSION=${{ steps.version.outputs.version }}
+          docker pull higress-registry.us-west-1.cr.aliyuncs.com/higress/openclaw-base:latest
+          make build-manager build-worker VERSION=${{ steps.version.outputs.version }} HIGRESS_REGISTRY=higress-registry.us-west-1.cr.aliyuncs.com
 
       - name: Install HiClaw
         env:

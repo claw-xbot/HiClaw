@@ -101,10 +101,11 @@ build-openclaw-base: ## Build OpenClaw base image
 		./openclaw-base/
 
 # build targets use the locally-built openclaw-base; push targets use the registry image
-# Both build and push targets use the registry :latest base image for layer sharing
-OPENCLAW_BASE_BUILD_ARG = --build-arg OPENCLAW_BASE_IMAGE=$(OPENCLAW_BASE_IMAGE):latest
-# push targets always use :latest so manager/worker layers are shared across releases
-OPENCLAW_BASE_PUSH_ARG  = --build-arg OPENCLAW_BASE_IMAGE=$(OPENCLAW_BASE_IMAGE):latest
+# OPENCLAW_BASE_VERSION controls which base image tag manager/worker builds depend on.
+# Default: latest (for standalone builds). Override to use a versioned base (e.g. in build-all).
+OPENCLAW_BASE_VERSION ?= latest
+OPENCLAW_BASE_BUILD_ARG = --build-arg OPENCLAW_BASE_IMAGE=$(OPENCLAW_BASE_IMAGE):$(OPENCLAW_BASE_VERSION)
+OPENCLAW_BASE_PUSH_ARG  = --build-arg OPENCLAW_BASE_IMAGE=$(OPENCLAW_BASE_IMAGE):$(OPENCLAW_BASE_VERSION)
 
 build-manager: ## Build Manager image
 	@echo "==> Building Manager image: $(LOCAL_MANAGER) (registry: $(HIGRESS_REGISTRY))"
