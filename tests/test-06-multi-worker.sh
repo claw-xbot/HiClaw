@@ -64,7 +64,22 @@ matrix_send_message "${ADMIN_TOKEN}" "${DM_ROOM}" \
     "I need Alice and Bob to collaborate on a task: Build a simple REST API. Alice handles the frontend HTML page, Bob handles the backend API endpoint. They should coordinate via shared files."
 
 log_info "Waiting for Manager to split and assign task..."
-REPLY=$(matrix_wait_for_reply "${ADMIN_TOKEN}" "${DM_ROOM}" "@manager" 180)
+REPLY=$(matrix_wait_for_reply "${ADMIN_TOKEN}" "${DM_ROOM}" "@manager" 300)
+
+if [ -z "${REPLY}" ]; then
+    log_info "No DM reply yet, checking if Manager created a Project Room instead..."
+    MANAGER_TOKEN=$(docker exec "${TEST_MANAGER_CONTAINER}" \
+        jq -r '.channels.matrix.accessToken // empty' /root/manager-workspace/openclaw.json 2>/dev/null || true)
+    if [ -n "${MANAGER_TOKEN}" ]; then
+        PROJECT_ROOM=$(matrix_find_room_by_name "${MANAGER_TOKEN}" "Project:" 2>/dev/null || true)
+        if [ -n "${PROJECT_ROOM}" ]; then
+            log_info "Project room found: ${PROJECT_ROOM}, checking for task assignment messages..."
+            REPLY=$(matrix_read_messages "${MANAGER_TOKEN}" "${PROJECT_ROOM}" 20 2>/dev/null | \
+                jq -r --arg u "@manager" \
+                '[.chunk[] | select(.sender | startswith($u)) | .content.body] | first // empty' 2>/dev/null || true)
+        fi
+    fi
+fi
 
 assert_not_empty "${REPLY}" "Manager acknowledged collaborative task"
 

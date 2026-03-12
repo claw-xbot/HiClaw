@@ -87,7 +87,7 @@ I've drafted the project plan for "<title>". Please review and confirm to start:
 
 [paste plan.md content here]
 
-If you'd like changes, let me know. Otherwise, reply "确认" to begin.
+If you'd like changes, let me know. Otherwise, reply "confirm" to begin.
 ```
 
 Wait for human confirmation before proceeding.
@@ -290,16 +290,16 @@ Change the task marker from `[ ]` to `[~]` and add the task-id link if not alrea
 
 ### 2d. @mention Worker in Project Room
 
-Send a message in the **project room** @mentioning the Worker:
+Send a message in the **project room** @mentioning the Worker. Adapt the language to match the human admin's preferred language. Reference template:
 
 ```
-@{worker}:{domain} 你有一个新任务 [{task-id}]：{task title}
+@{worker}:{domain} New task [{task-id}]: {task title}
 
-{2-3 句摘要：任务目的和关键交付物}
+{2-3 sentence summary: task purpose and key deliverables}
 
-完整规格：hiclaw/hiclaw-storage/shared/tasks/{task-id}/spec.md
+Full spec: hiclaw/hiclaw-storage/shared/tasks/{task-id}/spec.md
 
-请先使用 file-sync 技能同步任务文件，然后阅读任务规格。开始前先在任务目录创建 plan.md 记录执行计划，所有中间产物也请放在该目录下。完成后在此 @mention 我汇报结果。
+Please use file-sync to pull the task files first, then read the spec. Create plan.md in the task directory before starting. Keep all intermediate artifacts there. @mention me when complete.
 ```
 
 ---
@@ -424,16 +424,16 @@ EOF
 - [ ] task-zzz — Revision (assigned: @worker, revision for: task-xxx)
 ```
 
-6. **@mention the worker** in project room:
+6. **@mention the worker** in project room. Adapt the language to match the human admin's preferred language. Reference template:
 
 ```
-@{worker}:{domain} 任务 {ORIGINAL_TASK_ID} 反馈需要修改。
+@{worker}:{domain} Task {ORIGINAL_TASK_ID} feedback requires revisions.
 
-**任务**: {REVISION_TASK_ID} — 根据反馈进行修改
+**Task**: {REVISION_TASK_ID} — Revise based on feedback
 
-**反馈来源**: hiclaw/hiclaw-storage/shared/tasks/${ORIGINAL_TASK_ID}/result.md
+**Feedback source**: hiclaw/hiclaw-storage/shared/tasks/${ORIGINAL_TASK_ID}/result.md
 
-请先使用 file-sync 技能同步文件，阅读修改要求，完成后 @mention 我汇报。
+Please use file-sync to pull the latest files, review the revision requirements, and @mention me when complete.
 ```
 
 7. **Do NOT proceed to next phase** until revision is complete.
@@ -470,15 +470,15 @@ Assign the next task to the same Worker immediately (Step 2). The Worker is avai
 1. Update meta.json: `status → completed`
 2. Update plan.md Status to "completed"
 3. Sync to MinIO
-4. Post completion summary in project room, @mention human admin:
+4. Post completion summary in project room, @mention human admin. Adapt the language to match the human admin's preferred language. Reference template:
 
 ```
-@{admin}:{domain} 项目「{title}」已完成！
+@{admin}:{domain} Project "{title}" is complete!
 
-所有任务已全部交付：
+All tasks have been delivered:
 {list of completed tasks with one-line summary}
 
-项目文档：/root/hiclaw-fs/shared/projects/{project-id}/plan.md
+Project plan: /root/hiclaw-fs/shared/projects/{project-id}/plan.md
 ```
 
 5. Update `memory/YYYY-MM-DD.md` with project outcome
@@ -542,21 +542,21 @@ mc cp ~/openclaw.json hiclaw/hiclaw-storage/agents/manager/openclaw.json
 
 ### 6b. Send onboarding message in project room
 
-@mention the new Worker in the project room with a full context briefing:
+@mention the new Worker in the project room with a full context briefing. Adapt the language to match the human admin's preferred language. Reference template:
 
 ```
-@{new-worker}:{domain} 欢迎加入项目「{title}」！
+@{new-worker}:{domain} Welcome to project "{title}"!
 
-**项目背景**：{2-3 sentences describing what the project is and why}
+**Background**: {2-3 sentences describing what the project is and why}
 
-**当前进展**：
+**Current progress**:
 {summary of completed tasks and current status}
 
-**你的角色**：{description of what this Worker will contribute}
+**Your role**: {description of what this Worker will contribute}
 
-**项目计划**（最新版本）：hiclaw/hiclaw-storage/shared/projects/{project-id}/plan.md
+**Project plan** (latest): hiclaw/hiclaw-storage/shared/projects/{project-id}/plan.md
 
-请先使用 file-sync 技能同步文件，阅读 plan.md 了解全貌。我稍后会分配你的第一个任务。
+Please use file-sync to pull the latest files and read plan.md for the full picture. I will assign your first task shortly.
 ```
 
 Then notify the human admin in DM that the new Worker has been onboarded.
@@ -573,20 +573,20 @@ Before requesting human admin to create a new Worker, justify the need:
 2. **Explain the impact**: what tasks are blocked or at risk without this Worker
 3. **Propose the Worker profile**: name, role, skills, MCP access needed
 
-Present this to human admin in DM:
+Present this to human admin in DM. Adapt the language to match the human admin's preferred language. Reference template:
 
 ```
-项目「{title}」需要一个新的 Worker：
+Project "{title}" needs a new Worker:
 
-**角色**：{role name}
-**原因**：{current workers can't handle X because Y}
-**承担任务**：{which tasks will be assigned to this worker}
-**建议配置**：
-  - 名称：{suggested-worker-name}
-  - 技能：{required skills}
-  - MCP 访问：{required MCP servers}
+**Role**: {role name}
+**Reason**: {current workers can't handle X because Y}
+**Tasks**: {which tasks will be assigned to this worker}
+**Suggested config**:
+  - Name: {suggested-worker-name}
+  - Skills: {required skills}
+  - MCP access: {required MCP servers}
 
-是否批准创建？
+Approve creation?
 ```
 
 After human approval, use the worker-management skill to create the Worker.
@@ -610,8 +610,8 @@ for meta in /root/hiclaw-fs/shared/projects/*/meta.json; do
 done
 ```
 
-For each stalled Worker, post in the project room:
+For each stalled Worker, post in the project room. Adapt the language to match the human admin's preferred language. Reference template:
 ```
-@{worker}:{domain} 你正在执行的任务 {task-id} 有进展吗？有遇到阻塞请告知。
+@{worker}:{domain} Any progress on task {task-id}? Let me know if you're blocked.
 ```
 
