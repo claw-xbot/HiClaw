@@ -102,7 +102,7 @@ log "HOME set to ${HOME} (workspace files will be synced to MinIO)"
 #   Local -> Remote: change-triggered push of Worker-managed content
 #     - Uses find to detect files modified in last 10s; only runs mc mirror when needed
 #     - Avoids mc mirror --watch TOCTOU bug (crashes on atomic ops like npm install)
-#     - Excludes Manager-managed files (openclaw.json, mcporter-servers.json) and caches
+#     - Excludes Manager-managed files (openclaw.json, config/mcporter.json) and caches
 #
 #   Remote -> Local: on-demand pull via file-sync skill (triggered by Manager @mention)
 #     + 5-minute fallback pull of Manager-managed paths as safety net
@@ -114,7 +114,7 @@ log "HOME set to ${HOME} (workspace files will be synced to MinIO)"
         CHANGED=$(find "${WORKSPACE}/" -type f -newermt "10 seconds ago" 2>/dev/null | head -1)
         if [ -n "${CHANGED}" ]; then
             if ! mc mirror "${WORKSPACE}/" "hiclaw/hiclaw-storage/agents/${WORKER_NAME}/" --overwrite \
-                --exclude "openclaw.json" --exclude "mcporter-servers.json" --exclude ".agents/**" \
+                --exclude "openclaw.json" --exclude "config/mcporter.json" --exclude "mcporter-servers.json" --exclude ".agents/**" \
                 --exclude ".cache/**" --exclude ".npm/**" \
                 --exclude ".local/**" --exclude ".mc/**" 2>&1; then
                 log "WARNING: Local->Remote sync failed"
@@ -131,7 +131,7 @@ log "Local->Remote change-triggered sync started (PID: $!)"
     while true; do
         sleep 300
         mc cp "hiclaw/hiclaw-storage/agents/${WORKER_NAME}/openclaw.json" "${WORKSPACE}/openclaw.json" 2>/dev/null || true
-        mc cp "hiclaw/hiclaw-storage/agents/${WORKER_NAME}/mcporter-servers.json" "${WORKSPACE}/mcporter-servers.json" 2>/dev/null || true
+        mc cp "hiclaw/hiclaw-storage/agents/${WORKER_NAME}/config/mcporter.json" "${WORKSPACE}/config/mcporter.json" 2>/dev/null || true
         mc mirror "hiclaw/hiclaw-storage/agents/${WORKER_NAME}/skills/" "${WORKSPACE}/skills/" --overwrite 2>/dev/null || true
         mc mirror "hiclaw/hiclaw-storage/shared/" "${HICLAW_ROOT}/shared/" --overwrite --newer-than "5m" 2>/dev/null || true
     done
@@ -140,16 +140,27 @@ log "Remote->Local fallback sync started (Manager-managed files only, every 5m, 
 
 # ============================================================
 # Step 4: Configure mcporter (MCP tool CLI)
-# Always set MCPORTER_CONFIG so mcporter commands work after file-sync
-# pulls the config. The file may not exist at startup but will appear
-# when Manager configures MCP servers and Worker runs file-sync.
+# Config at ./config/mcporter.json (mcporter default path, no --config needed)
+# Symlink at ~/mcporter-servers.json for backward compatibility
+# The file may not exist at startup but will appear when Manager
+# configures MCP servers and Worker runs file-sync.
 # ============================================================
-export MCPORTER_CONFIG="${WORKSPACE}/mcporter-servers.json"
-if [ -f "${MCPORTER_CONFIG}" ]; then
-    log "mcporter configured: ${MCPORTER_CONFIG}"
+MCPORTER_DEFAULT="${WORKSPACE}/config/mcporter.json"
+MCPORTER_COMPAT="${WORKSPACE}/mcporter-servers.json"
+mkdir -p "${WORKSPACE}/config"
+if [ -f "${MCPORTER_DEFAULT}" ]; then
+    log "mcporter configured: ${MCPORTER_DEFAULT}"
+elif [ -f "${MCPORTER_COMPAT}" ] && [ ! -L "${MCPORTER_COMPAT}" ]; then
+    # Migrate legacy mcporter-servers.json to new default path
+    mv "${MCPORTER_COMPAT}" "${MCPORTER_DEFAULT}"
+    log "mcporter config migrated to ${MCPORTER_DEFAULT}"
 else
     log "mcporter config not yet available (will be pulled via file-sync when MCP servers are configured)"
 fi
+# Backward-compatible symlink (always recreate to ensure correctness)
+ln -sfn "${MCPORTER_DEFAULT}" "${MCPORTER_COMPAT}"
+# Keep MCPORTER_CONFIG for any scripts that still reference it
+export MCPORTER_CONFIG="${MCPORTER_DEFAULT}"
 
 # ============================================================
 # Step 5: Launch OpenClaw Worker Agent

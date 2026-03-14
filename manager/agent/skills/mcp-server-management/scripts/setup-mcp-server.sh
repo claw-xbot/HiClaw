@@ -5,8 +5,8 @@
 #   1. DNS service source registration (auto-extracted from YAML or explicit)
 #   2. YAML credential substitution (unified key: accessToken)
 #   3. MCP Server creation/update via PUT (upsert)
-#   4. Manager mcporter-servers.json update
-#   5. Worker consumer authorization + mcporter-servers.json update/creation
+#   4. Manager config/mcporter.json update
+#   5. Worker consumer authorization + config/mcporter.json update/creation
 #
 # Usage:
 #   bash setup-mcp-server.sh <server-name> <credential-value> [--yaml-file <path>] [--api-domain <domain>]
@@ -277,12 +277,17 @@ else
 fi
 
 # ============================================================
-# Step 4: Update Manager's own mcporter-servers.json
+# Step 4: Update Manager's own mcporter config
+# Config at ./config/mcporter.json (mcporter default path, no --config needed)
+# Symlink at ~/mcporter-servers.json for backward compatibility
 # ============================================================
-log "Step 4: Updating Manager mcporter-servers.json..."
+log "Step 4: Updating Manager mcporter config..."
 MANAGER_KEY="${HICLAW_MANAGER_GATEWAY_KEY:-}"
-MANAGER_MCPORTER="${HOME}/mcporter-servers.json"
+MANAGER_MCPORTER_DIR="${HOME}/config"
+MANAGER_MCPORTER="${MANAGER_MCPORTER_DIR}/mcporter.json"
+MANAGER_MCPORTER_COMPAT="${HOME}/mcporter-servers.json"
 if [ -n "${MANAGER_KEY}" ]; then
+    mkdir -p "${MANAGER_MCPORTER_DIR}"
     if [ -f "${MANAGER_MCPORTER}" ]; then
         UPDATED=$(jq --arg name "${MCP_SERVER_NAME}" --arg domain "${AI_GATEWAY_DOMAIN}" --arg key "${MANAGER_KEY}" \
             '.mcpServers[$name] = {
@@ -299,7 +304,9 @@ if [ -n "${MANAGER_KEY}" ]; then
                 headers: {Authorization: ("Bearer " + $key)}
             }}}' > "${MANAGER_MCPORTER}"
     fi
-    log "  Manager mcporter-servers.json updated"
+    # Backward-compatible symlink
+    ln -sfn "${MANAGER_MCPORTER}" "${MANAGER_MCPORTER_COMPAT}"
+    log "  Manager config/mcporter.json updated"
 else
     log "  WARNING: HICLAW_MANAGER_GATEWAY_KEY not set, skipping Manager mcporter update"
 fi
@@ -321,7 +328,10 @@ if [ -f "${REGISTRY_FILE}" ]; then
         '{"mcpServerName":"'"${MCP_SERVER_NAME}"'","consumers":'"${CONSUMER_LIST}"'}'
 
     for wname in ${WORKER_NAMES}; do
-        MCPORTER_FILE="/root/hiclaw-fs/agents/${wname}/mcporter-servers.json"
+        WORKER_AGENT_DIR="/root/hiclaw-fs/agents/${wname}"
+        MCPORTER_DIR="${WORKER_AGENT_DIR}/config"
+        MCPORTER_FILE="${MCPORTER_DIR}/mcporter.json"
+        MCPORTER_COMPAT="${WORKER_AGENT_DIR}/mcporter-servers.json"
         # Read worker gateway key from persisted credentials
         WORKER_CREDS="/data/worker-creds/${wname}.env"
         WORKER_KEY=""
@@ -332,8 +342,9 @@ if [ -f "${REGISTRY_FILE}" ]; then
             log "  WARNING: No gateway key for ${wname} (creds file missing), skipping mcporter update"
             continue
         fi
+        mkdir -p "${MCPORTER_DIR}"
         if [ -f "${MCPORTER_FILE}" ]; then
-            # Update existing mcporter-servers.json
+            # Update existing config/mcporter.json
             UPDATED=$(jq --arg name "${MCP_SERVER_NAME}" --arg domain "${AI_GATEWAY_DOMAIN}" --arg key "${WORKER_KEY}" \
                 '.mcpServers[$name] = {
                     url: ("http://" + $domain + ":8080/mcp-servers/" + $name + "/mcp"),
@@ -342,25 +353,27 @@ if [ -f "${REGISTRY_FILE}" ]; then
                 }' "${MCPORTER_FILE}" 2>/dev/null)
             if [ -n "${UPDATED}" ] && [ "${UPDATED}" != "null" ]; then
                 echo "${UPDATED}" | jq . > "${MCPORTER_FILE}"
-                log "  Updated mcporter-servers.json for ${wname}"
+                log "  Updated config/mcporter.json for ${wname}"
             else
-                log "  WARNING: Failed to update mcporter-servers.json for ${wname}"
+                log "  WARNING: Failed to update config/mcporter.json for ${wname}"
                 continue
             fi
         else
-            # Create new mcporter-servers.json for worker
+            # Create new config/mcporter.json for worker
             jq -n --arg name "${MCP_SERVER_NAME}" --arg domain "${AI_GATEWAY_DOMAIN}" --arg key "${WORKER_KEY}" \
                 '{mcpServers: {($name): {
                     url: ("http://" + $domain + ":8080/mcp-servers/" + $name + "/mcp"),
                     transport: "http",
                     headers: {Authorization: ("Bearer " + $key)}
                 }}}' > "${MCPORTER_FILE}"
-            log "  Created mcporter-servers.json for ${wname}"
+            log "  Created config/mcporter.json for ${wname}"
         fi
+        # Backward-compatible symlink
+        ln -sfn "${MCPORTER_FILE}" "${MCPORTER_COMPAT}"
         # Push to MinIO immediately (don't rely on mc mirror --watch)
-        mc cp "${MCPORTER_FILE}" "hiclaw/hiclaw-storage/agents/${wname}/mcporter-servers.json" 2>/dev/null \
-            && log "  Pushed mcporter-servers.json to MinIO for ${wname}" \
-            || log "  WARNING: Failed to push mcporter-servers.json to MinIO for ${wname}"
+        mc cp "${MCPORTER_FILE}" "hiclaw/hiclaw-storage/agents/${wname}/config/mcporter.json" 2>/dev/null \
+            && log "  Pushed config/mcporter.json to MinIO for ${wname}" \
+            || log "  WARNING: Failed to push config/mcporter.json to MinIO for ${wname}"
     done
 else
     log "  No workers-registry.json found, skipping Worker authorization"

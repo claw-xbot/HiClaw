@@ -68,8 +68,8 @@ The script determines the API domain in this order:
 1. Determines the API domain (`--api-domain` flag or auto-extracted from YAML) and registers a DNS service source
 2. Reads the YAML config, substitutes `accessToken: ""` with the real credential
 3. Creates/updates the MCP Server via `PUT /v1/mcpServer` (upsert) and authorizes your consumer
-4. Updates your `~/mcporter-servers.json` so you can call the new tools via `mcporter`
-5. Reads `~/workers-registry.json`, authorizes all existing Workers, and updates/creates each Worker's `mcporter-servers.json` (pushed to MinIO)
+4. Updates your `./config/mcporter.json` so you can call the new tools via `mcporter`
+5. Reads `~/workers-registry.json`, authorizes all existing Workers, and updates/creates each Worker's `config/mcporter.json` (pushed to MinIO)
 
 The script is fully idempotent — safe to re-run for credential rotation or updates.
 
@@ -234,8 +234,8 @@ bash /opt/hiclaw/agent/skills/mcp-server-management/scripts/setup-mcp-server.sh 
 
 1. Wait ~10s for the auth plugin to activate
 2. Use your **mcporter skill** to verify the new MCP server works correctly before notifying Workers:
-   - `mcporter --config ~/mcporter-servers.json list` — confirm the server appears and is healthy
-   - `mcporter --config ~/mcporter-servers.json list <server-name> --schema` — review available tools
+   - `mcporter list` — confirm the server appears and is healthy
+   - `mcporter list <server-name> --schema` — review available tools
    - Call at least one representative tool to verify end-to-end connectivity and correct responses
    - If any test fails, debug and fix before proceeding — do not push broken tools to Workers
 3. Confirm to the user that the MCP server is configured and tested
@@ -246,7 +246,7 @@ bash /opt/hiclaw/agent/skills/mcp-server-management/scripts/setup-mcp-server.sh 
    Message format:
    ```
    @{worker}:{domain} New MCP server `{mcp-server-name}` has been configured with tools: {tool list from YAML}.
-   Please use your file-sync skill to pull the updated mcporter-servers.json, then use your mcporter skill to discover and learn the new tools.
+   Please use your file-sync skill to pull the updated config, then use your mcporter skill to discover and learn the new tools.
    ```
    The tool list should be extracted from the YAML config's `tools[].name` fields so the Worker knows what's available.
 

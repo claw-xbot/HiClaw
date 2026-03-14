@@ -12,13 +12,7 @@ This skill allows you to manage **Pull Requests and Issues** via the centralized
 
 ## Environment Variables
 
-These environment variables are pre-configured in your Worker container:
-
-```bash
-MCPORTER_CONFIG  # Path to mcporter server configuration file
-```
-
-This variable is set automatically - use it directly in your commands.
+No environment variables needed — `mcporter` reads its config from the default path `./config/mcporter.json` automatically.
 
 | Task | Use This Skill | Use git-delegation |
 |------|---------------|-------------------|
@@ -40,11 +34,11 @@ Use `mcporter` CLI to call MCP Server tools:
 
 ```bash
 # Method 1: key=value format (recommended for simple args)
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.<TOOL_NAME> key1=value1 key2=value2
 
 # Method 2: JSON format with --args flag (for complex objects)
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.<TOOL_NAME> --args '{"key1":"value1","key2":"value2"}'
 ```
 
@@ -66,7 +60,7 @@ mcporter returns JSON output. Parse with `jq` for clean results.
 Create a new Pull Request:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.create_pull_request --args '{
     "owner": "higress-group",
     "repo": "hiclaw",
@@ -82,7 +76,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List PRs in a repository:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.list_pull_requests owner=higress-group repo=hiclaw state=open
 ```
 
@@ -91,7 +85,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Get details of a specific PR:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.get_pull_request owner=higress-group repo=hiclaw pull_number=1
 ```
 
@@ -100,7 +94,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Update PR title, body, or state:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.update_pull_request --args '{
     "owner": "higress-group",
     "repo": "hiclaw",
@@ -115,7 +109,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Merge a PR:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.merge_pull_request owner=higress-group repo=hiclaw pull_number=1 merge_method=squash
 ```
 
@@ -124,7 +118,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List files changed in a PR:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.get_pull_request_files owner=higress-group repo=hiclaw pull_number=1
 ```
 
@@ -133,7 +127,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Get CI status of a PR:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.get_pull_request_status owner=higress-group repo=hiclaw pull_number=1
 ```
 
@@ -142,7 +136,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Request reviewers for a PR:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.request_reviewers --args '{
     "owner": "higress-group",
     "repo": "hiclaw",
@@ -160,7 +154,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Add a general comment to a PR (PRs are also issues):
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.add_issue_comment owner=higress-group repo=hiclaw issue_number=1 body="LGTM! Great work."
 ```
 
@@ -169,7 +163,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List comments on a PR:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.list_issue_comments owner=higress-group repo=hiclaw issue_number=1
 ```
 
@@ -179,12 +173,12 @@ Comment on a specific code line in a PR:
 
 ```bash
 # First get the latest commit SHA from the PR
-PR_DATA=$(mcporter --config "${MCPORTER_CONFIG}" \
+PR_DATA=$(mcporter \
   call mcp-github.get_pull_request owner=higress-group repo=hiclaw pull_number=1)
 COMMIT_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
 
 # Create a review comment
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.create_pull_request_review_comment --args '{
     "owner": "higress-group",
     "repo": "hiclaw",
@@ -202,7 +196,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List all review comments on a PR:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.get_pull_request_comments owner=higress-group repo=hiclaw pull_number=1
 ```
 
@@ -211,7 +205,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List reviews on a PR:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.get_pull_request_reviews owner=higress-group repo=hiclaw pull_number=1
 ```
 
@@ -224,7 +218,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Create a new issue:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.create_issue owner=higress-group repo=hiclaw title="Bug report" body="Description..."
 ```
 
@@ -233,7 +227,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List issues in a repository:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.list_issues owner=higress-group repo=hiclaw state=open
 ```
 
@@ -242,7 +236,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Get details of a specific issue:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.get_issue owner=higress-group repo=hiclaw issue_number=1
 ```
 
@@ -251,7 +245,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Update issue title, body, state, or labels:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.update_issue --args '{
     "owner": "higress-group",
     "repo": "hiclaw",
@@ -266,7 +260,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Add a comment to an issue:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.add_issue_comment owner=higress-group repo=hiclaw issue_number=1 body="Comment text"
 ```
 
@@ -275,7 +269,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List comments on an issue:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.list_issue_comments owner=higress-group repo=hiclaw issue_number=1
 ```
 
@@ -288,7 +282,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List labels in a repository:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.list_labels owner=higress-group repo=hiclaw
 ```
 
@@ -297,7 +291,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Get details of a label:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.get_label owner=higress-group repo=hiclaw name=bug
 ```
 
@@ -310,7 +304,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Search issues and PRs:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.search_issues q="is:issue is:open repo:higress-group/hiclaw"
 ```
 
@@ -319,7 +313,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Search code in repositories:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.search_code q="function handleAuth repo:higress-group/hiclaw"
 ```
 
@@ -328,7 +322,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Search repositories:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.search_repositories query="hiclaw language:go"
 ```
 
@@ -337,7 +331,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Search users:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.search_users q="john location:shanghai"
 ```
 
@@ -350,7 +344,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 Get current authenticated user:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.get_me
 ```
 
@@ -359,7 +353,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List notifications:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.list_notifications all=false
 ```
 
@@ -368,7 +362,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List teams in an organization:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.list_teams
 ```
 
@@ -377,7 +371,7 @@ mcporter --config "${MCPORTER_CONFIG}" \
 List members of a team:
 
 ```bash
-mcporter --config "${MCPORTER_CONFIG}" \
+mcporter \
   call mcp-github.list_team_members org=higress-group team_slug=core-team
 ```
 

@@ -5,25 +5,25 @@ description: Discover and call MCP Server tools via the mcporter CLI. Use when M
 
 # mcporter — MCP Tool CLI
 
-You call MCP Server tools via `mcporter`. Your config is at `${MCPORTER_CONFIG}` (set automatically in your environment).
+You call MCP Server tools via `mcporter`. Your config is at `./config/mcporter.json` (mcporter's default path — no `--config` flag needed).
 
 ## Commands
 
 ```bash
 # List all configured MCP servers and their tool counts
-mcporter --config "${MCPORTER_CONFIG}" list
+mcporter list
 
 # View a specific server's tools with full parameter schemas
-mcporter --config "${MCPORTER_CONFIG}" list <server-name> --schema
+mcporter list <server-name> --schema
 
 # Call a tool — key=value syntax for simple args
-mcporter --config "${MCPORTER_CONFIG}" call <server-name>.<tool-name> key=value key2=value2
+mcporter call <server-name>.<tool-name> key=value key2=value2
 
 # Call a tool — JSON syntax for complex args (arrays, objects, numbers)
-mcporter --config "${MCPORTER_CONFIG}" call <server-name>.<tool-name> --args '{"key":"value","count":5}'
+mcporter call <server-name>.<tool-name> --args '{"key":"value","count":5}'
 ```
 
-Always place `--config` BEFORE the subcommand (`list` or `call`). Output is JSON — parse with `jq` when needed.
+Output is JSON — parse with `jq` when needed.
 
 ## When Manager Notifies You About New MCP Tools
 
@@ -31,7 +31,7 @@ When Manager @mentions you saying a new MCP server has been configured, follow t
 
 ### Step 1: Pull the updated config
 
-Run your file-sync skill to get the latest `mcporter-servers.json`:
+Run your file-sync skill to get the latest config:
 
 ```bash
 hiclaw-sync
@@ -41,10 +41,10 @@ hiclaw-sync
 
 ```bash
 # Verify the new server appears
-mcporter --config "${MCPORTER_CONFIG}" list
+mcporter list
 
 # Get full tool schemas — read carefully to understand each tool
-mcporter --config "${MCPORTER_CONFIG}" list <server-name> --schema
+mcporter list <server-name> --schema
 ```
 
 ### Step 3: Generate a skill for the new MCP server
@@ -59,9 +59,8 @@ Then write `~/skills/<server-short-name>-operations/SKILL.md` with:
 
 1. Front-matter: `name`, `description`, `assign_when`
 2. Overview section explaining what the MCP server does
-3. Environment variables section (just `MCPORTER_CONFIG`)
-4. For each tool: a section with description, example `mcporter call` command, and parameter notes
-5. Important notes (rate limits, auth, known issues if any)
+3. For each tool: a section with description, example `mcporter call` command, and parameter notes
+4. Important notes (rate limits, auth, known issues if any)
 
 Use the tool schemas from Step 2 as the source of truth for parameter names, types, and required/optional status.
 
@@ -80,17 +79,12 @@ assign_when: Worker needs weather information for a task
 
 Use this skill to query weather data via the centralized MCP Server.
 
-## Environment Variables
-
-MCPORTER_CONFIG  # Path to mcporter server configuration (pre-configured)
-
 ## get_weather
 
 Get current weather for a city:
 
 \```bash
-mcporter --config "${MCPORTER_CONFIG}" \
-  call mcp-weather.get_weather city=Tokyo units=metric
+mcporter call mcp-weather.get_weather city=Tokyo units=metric
 \```
 
 | Parameter | Type | Required | Description |
@@ -109,7 +103,7 @@ After generating the skill, reply to Manager confirming:
 
 ## Important Notes
 
-- **Transport**: MCP Servers use HTTP transport (configured in mcporter-servers.json)
+- **Transport**: MCP Servers use HTTP transport (configured in config/mcporter.json)
 - **Auth**: Authorization header with Bearer token is auto-configured — you don't need to manage credentials
 - **Permissions**: Your MCP access is controlled by Manager. If you get 403 from the MCP Server, ask Manager to re-authorize your access
-- **Config not found**: If `${MCPORTER_CONFIG}` doesn't exist yet, run `hiclaw-sync` first — Manager pushes the config to MinIO after setting up MCP servers
+- **Config not found**: If `./config/mcporter.json` doesn't exist yet, run `hiclaw-sync` first — Manager pushes the config to MinIO after setting up MCP servers
