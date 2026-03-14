@@ -28,3 +28,7 @@ dist/
 .mypy_cache/
 .ruff_cache/
 manager/copaw-agent/
+# Node.js
+node_modules/
+package.json
+pnpm-lock.yaml
