@@ -175,12 +175,22 @@ class FileSync:
         """
         changed: list[str] = []
         # Manager-managed files (allowlist)
-        files = {
-            "openclaw.json": f"{self._prefix}/openclaw.json",
-            "config/mcporter.json": f"{self._prefix}/config/mcporter.json",
+        # Each entry: local_name -> list of remote keys (tried in order, first hit wins).
+        # The fallback handles the migration period where MinIO may still have the
+        # old path (mcporter-servers.json) before Manager re-runs setup-mcp-server.sh.
+        files: dict[str, list[str]] = {
+            "openclaw.json": [f"{self._prefix}/openclaw.json"],
+            "config/mcporter.json": [
+                f"{self._prefix}/config/mcporter.json",
+                f"{self._prefix}/mcporter-servers.json",  # backward compat
+            ],
         }
-        for name, key in files.items():
-            content = self._cat(key)
+        for name, keys in files.items():
+            content = None
+            for key in keys:
+                content = self._cat(key)
+                if content is not None:
+                    break
             if content is None:
                 continue
             local = self.local_dir / name

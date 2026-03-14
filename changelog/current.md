@@ -23,4 +23,5 @@ Record image-affecting changes to `manager/`, `worker/`, `openclaw-base/` here b
 - refactor(manager,worker): move mcporter config to `./config/mcporter.json` (mcporter default path, no `--config` needed); symlink at old `mcporter-servers.json` path for backward compatibility; remove `MCPORTER_CONFIG` env var dependency from all SKILL.md files
 - fix(copaw): update FileSync to pull `config/mcporter.json` from MinIO (was still using old `mcporter-servers.json` path); exclude new path from push_local
 - fix(copaw): copy mcporter config from workspace root into COPAW_WORKING_DIR (`.copaw/config/mcporter.json`) so mcporter finds it at default path; auto-update on file-sync pull
+- fix(copaw): add backward-compat fallback in `pull_all` — try `config/mcporter.json` first, fall back to legacy `mcporter-servers.json` path in MinIO
 
