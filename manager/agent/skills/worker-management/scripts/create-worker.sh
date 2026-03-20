@@ -6,7 +6,7 @@
 # MinIO sync, skills push, and container startup.
 #
 # Usage:
-#   create-worker.sh --name <NAME> [--model <MODEL_ID>] [--image <IMAGE>] [--mcp-servers s1,s2] [--skills s1,s2] [--find-skills] [--skills-api-url <URL>] [--remote]
+#   create-worker.sh --name <NAME> [--model <MODEL_ID>] [--image <IMAGE>] [--mcp-servers s1,s2] [--skills s1,s2] [--skills-api-url <URL>] [--remote]
 #
 # Prerequisites:
 #   - SOUL.md must already exist at /root/hiclaw-fs/agents/<NAME>/SOUL.md
@@ -37,9 +37,8 @@ log() {
 WORKER_NAME=""
 MODEL_ID=""
 MCP_SERVERS=""
-WORKER_SKILLS="file-sync,mcporter"
+WORKER_SKILLS=""
 REMOTE_MODE=false
-ENABLE_FIND_SKILLS=false
 SKILLS_API_URL=""
 WORKER_RUNTIME="${HICLAW_DEFAULT_WORKER_RUNTIME:-openclaw}"   # openclaw | copaw
 CONSOLE_PORT=""             # copaw only: web console port (e.g. 8088)
@@ -52,7 +51,6 @@ while [ $# -gt 0 ]; do
         --image)      CUSTOM_IMAGE="$2"; shift 2 ;;
         --mcp-servers) MCP_SERVERS="$2"; shift 2 ;;
         --skills)     WORKER_SKILLS="$2"; shift 2 ;;
-        --find-skills) ENABLE_FIND_SKILLS=true; shift ;;
         --skills-api-url) SKILLS_API_URL="$2"; shift 2 ;;
         --remote)     REMOTE_MODE=true; shift ;;
         --runtime)    WORKER_RUNTIME="$2"; shift 2 ;;
@@ -62,7 +60,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "${WORKER_NAME}" ]; then
-    echo "Usage: create-worker.sh --name <NAME> [--model <MODEL_ID>] [--image <IMAGE>] [--mcp-servers s1,s2] [--skills s1,s2] [--find-skills] [--skills-api-url <URL>] [--remote] [--runtime openclaw|copaw] [--console-port <PORT>]"
+    echo "Usage: create-worker.sh --name <NAME> [--model <MODEL_ID>] [--image <IMAGE>] [--mcp-servers s1,s2] [--skills s1,s2] [--skills-api-url <URL>] [--remote] [--runtime openclaw|copaw] [--console-port <PORT>]"
     exit 1
 fi
 
@@ -71,18 +69,21 @@ fi
 # consistency to avoid issues when inviting workers to rooms.
 WORKER_NAME=$(echo "${WORKER_NAME}" | tr 'A-Z' 'a-z')
 
+# Validate worker name: restrict to safe subset of Matrix localpart charset
+if ! echo "${WORKER_NAME}" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+    echo "ERROR: INVALID_WORKER_NAME"
+    echo "Worker name '${WORKER_NAME}' contains invalid characters."
+    echo "Worker names must start with a letter or digit and contain only lowercase letters (a-z), digits (0-9), and hyphens (-)."
+    echo "Examples: alice, dev-01, travel-assistant"
+    exit 1
+fi
+
 # copaw runtime supports both container and pip-installed modes
 # (previously forced REMOTE_MODE=true; now containers are supported)
 
-# If find-skills is enabled, add it to the skills list
 # Fallback: if HICLAW_SKILLS_API_URL env is set and no --skills-api-url was passed, use it
 if [ -z "${SKILLS_API_URL}" ] && [ -n "${HICLAW_SKILLS_API_URL}" ]; then
     SKILLS_API_URL="${HICLAW_SKILLS_API_URL}"
-fi
-if [ "${ENABLE_FIND_SKILLS}" = true ]; then
-    if ! echo "${WORKER_SKILLS}" | grep -q '\bfind-skills\b'; then
-        WORKER_SKILLS="${WORKER_SKILLS},find-skills"
-    fi
 fi
 
 MATRIX_DOMAIN="${HICLAW_MATRIX_DOMAIN:-matrix-local.hiclaw.io:8080}"
@@ -342,8 +343,6 @@ bash /opt/hiclaw/agent/skills/worker-management/scripts/generate-worker-config.s
 # Generate mcporter-servers.json if MCP servers are authorized
 if [ -n "${TARGET_MCP_LIST}" ]; then
     log "  Generating mcporter-servers.json..."
-    # MCP servers are hosted on the AI Gateway domain
-    AIGW_DOMAIN="${HICLAW_AI_GATEWAY_DOMAIN:-aigw-local.hiclaw.io}"
     MCPORTER_JSON='{"mcpServers":{'
     FIRST=true
     IFS=',' read -ra MCP_ARR2 <<< "${TARGET_MCP_LIST}"
@@ -351,7 +350,7 @@ if [ -n "${TARGET_MCP_LIST}" ]; then
         mcp_name=$(echo "${mcp_name}" | tr -d ' ')
         [ -z "${mcp_name}" ] && continue
         if [ "${FIRST}" = true ]; then FIRST=false; else MCPORTER_JSON="${MCPORTER_JSON},"; fi
-        MCPORTER_JSON="${MCPORTER_JSON}\"${mcp_name}\":{\"url\":\"http://${AIGW_DOMAIN}:8080/mcp-servers/${mcp_name}/mcp\",\"transport\":\"http\",\"headers\":{\"Authorization\":\"Bearer ${WORKER_KEY}\"}}"
+        MCPORTER_JSON="${MCPORTER_JSON}\"${mcp_name}\":{\"url\":\"${HICLAW_AI_GATEWAY_SERVER}/mcp-servers/${mcp_name}/mcp\",\"transport\":\"http\",\"headers\":{\"Authorization\":\"Bearer ${WORKER_KEY}\"}}"
     done
     MCPORTER_JSON="${MCPORTER_JSON}}}"
     echo "${MCPORTER_JSON}" | jq . > "/root/hiclaw-fs/agents/${WORKER_NAME}/mcporter-servers.json"
@@ -414,14 +413,12 @@ rm -f "${_tmp_pw}"
 
 log "  MinIO sync verified"
 
-# Push Worker agent files from Manager image (AGENTS.md + file-sync skill)
-# Use runtime-specific file-sync skill for copaw workers
+# Push Worker agent files from Manager image (AGENTS.md + default skills)
+# Use runtime-specific skills for copaw workers
 if [ "${WORKER_RUNTIME}" = "copaw" ]; then
     WORKER_AGENT_SRC="/opt/hiclaw/agent/copaw-worker-agent"
-    FILESYNC_SRC="${WORKER_AGENT_SRC}/skills/file-sync"
 else
     WORKER_AGENT_SRC="/opt/hiclaw/agent/worker-agent"
-    FILESYNC_SRC="${WORKER_AGENT_SRC}/skills/file-sync"
 fi
 
 if [ -d "${WORKER_AGENT_SRC}" ]; then
@@ -431,16 +428,19 @@ if [ -d "${WORKER_AGENT_SRC}" ]; then
         "${HICLAW_STORAGE_PREFIX}/agents/${WORKER_NAME}/AGENTS.md" \
         "${WORKER_AGENT_SRC}/AGENTS.md" \
         || log "  WARNING: Failed to merge AGENTS.md"
-    
-    if [ -d "${FILESYNC_SRC}" ]; then
-        log "  Pushing file-sync skill (${WORKER_RUNTIME}) to worker MinIO..."
-        mc mirror "${FILESYNC_SRC}/" \
-            "${HICLAW_STORAGE_PREFIX}/agents/${WORKER_NAME}/skills/file-sync/" --overwrite \
-            || log "  WARNING: Failed to push file-sync skill"
-        log "  Worker agent files pushed"
-    else
-        log "  WARNING: file-sync skill not found at ${FILESYNC_SRC}"
+
+    # Push all builtin skills from runtime-specific agent dir
+    if [ -d "${WORKER_AGENT_SRC}/skills" ]; then
+        for _skill_dir in "${WORKER_AGENT_SRC}/skills"/*/; do
+            [ ! -d "${_skill_dir}" ] && continue
+            _skill_name=$(basename "${_skill_dir}")
+            log "  Pushing ${_skill_name} skill (${WORKER_RUNTIME}) to worker MinIO..."
+            mc mirror "${_skill_dir}" \
+                "${HICLAW_STORAGE_PREFIX}/agents/${WORKER_NAME}/skills/${_skill_name}/" --overwrite \
+                || log "  WARNING: Failed to push ${_skill_name} skill"
+        done
     fi
+    log "  Worker agent files pushed"
 else
     log "  WARNING: worker-agent directory not found at ${WORKER_AGENT_SRC}"
 fi
@@ -461,15 +461,12 @@ if [ ! -f "${REGISTRY_FILE}" ]; then
     echo '{"version":1,"updated_at":"","workers":{}}' > "${REGISTRY_FILE}"
 fi
 
-# Build skills JSON array from WORKER_SKILLS (comma-separated)
+# Build skills JSON array from WORKER_SKILLS (comma-separated, on-demand only)
+# Builtin skills (from worker-agent/skills/) are NOT recorded in the registry —
+# they are always pushed directly in Step 8 and by upgrade-builtins.sh.
 SKILLS_JSON="["
 FIRST_SKILL=true
-# Ensure file-sync is always included
-SKILLS_WITH_FILESYNC="${WORKER_SKILLS}"
-if ! echo "${SKILLS_WITH_FILESYNC}" | grep -q '\bfile-sync\b'; then
-    SKILLS_WITH_FILESYNC="file-sync,${SKILLS_WITH_FILESYNC}"
-fi
-IFS=',' read -ra SKILL_ARR <<< "${SKILLS_WITH_FILESYNC}"
+IFS=',' read -ra SKILL_ARR <<< "${WORKER_SKILLS}"
 for skill in "${SKILL_ARR[@]}"; do
     skill=$(echo "${skill}" | tr -d ' ')
     [ -z "${skill}" ] && continue
@@ -543,12 +540,8 @@ _build_install_cmd() {
 
     local cmd="bash hiclaw-install.sh worker --name ${WORKER_NAME} --fs ${fs_internal_endpoint} --fs-key ${fs_access_key} --fs-secret ${fs_secret_key}"
 
-    # Add find-skills related options if enabled
-    if [ "${ENABLE_FIND_SKILLS}" = true ]; then
-        cmd="${cmd} --find-skills"
-        if [ -n "${SKILLS_API_URL}" ]; then
-            cmd="${cmd} --skills-api-url ${SKILLS_API_URL}"
-        fi
+    if [ -n "${SKILLS_API_URL}" ]; then
+        cmd="${cmd} --skills-api-url ${SKILLS_API_URL}"
     fi
 
     echo "${cmd}"
@@ -557,7 +550,7 @@ _build_install_cmd() {
 # Build extra environment variables JSON for container creation
 _build_extra_env() {
     local items=()
-    if [ "${ENABLE_FIND_SKILLS}" = true ] && [ -n "${SKILLS_API_URL}" ]; then
+    if [ -n "${SKILLS_API_URL}" ]; then
         items+=("SKILLS_API_URL=${SKILLS_API_URL}")
     fi
     if [ -n "${CONSOLE_PORT}" ]; then
