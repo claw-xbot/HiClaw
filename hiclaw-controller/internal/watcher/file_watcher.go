@@ -50,9 +50,6 @@ func (w *FileWatcher) InitialSync(ctx context.Context) error {
 		if d.IsDir() || (!strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml")) {
 			return nil
 		}
-		if strings.HasSuffix(d.Name(), ".gitkeep") {
-			return nil
-		}
 
 		if syncErr := w.syncFile(ctx, path); syncErr != nil {
 			logger.Error(syncErr, "failed to sync file during initial scan", "path", path)
@@ -92,9 +89,10 @@ func (w *FileWatcher) Watch(ctx context.Context) error {
 
 	logger.Info("watching for changes", "dir", w.WatchDir)
 
-	// Debounce: collect events for 500ms before processing
+	// Debounce: collect events for 500ms before processing.
+	// All access to pending happens in this single goroutine (no race).
 	pending := make(map[string]fsnotify.Op)
-	var timer *time.Timer
+	var debounceC <-chan time.Time
 
 	for {
 		select {
@@ -110,15 +108,13 @@ func (w *FileWatcher) Watch(ctx context.Context) error {
 			}
 
 			pending[event.Name] = event.Op
-
 			// Reset debounce timer
-			if timer != nil {
-				timer.Stop()
-			}
-			timer = time.AfterFunc(500*time.Millisecond, func() {
-				w.processPending(ctx, pending)
-				pending = make(map[string]fsnotify.Op)
-			})
+			debounceC = time.After(500 * time.Millisecond)
+
+		case <-debounceC:
+			w.processPending(ctx, pending)
+			pending = make(map[string]fsnotify.Op)
+			debounceC = nil
 
 		case err, ok := <-watcher.Errors:
 			if !ok {

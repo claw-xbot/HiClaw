@@ -548,18 +548,9 @@ spec:
 	return nil
 }
 
-// jsonField extracts a simple string field from JSON without a full parser.
+// jsonField extracts a simple string field from JSON using jq.
 // Handles both top-level and nested "worker.field" / "team.field" patterns.
 func jsonField(jsonStr, field string) string {
-	// Try direct field: "field": "value"
-	patterns := []string{
-		fmt.Sprintf(`"%s"`, field),
-		fmt.Sprintf(`"worker"`) + `.*` + fmt.Sprintf(`"%s"`, field),
-		fmt.Sprintf(`"team"`) + `.*` + fmt.Sprintf(`"%s"`, field),
-	}
-	_ = patterns
-
-	// Simple approach: use jq if available
 	cmd := exec.Command("jq", "-r",
 		fmt.Sprintf(`.%s // .worker.%s // .team.%s // ""`, field, field, field),
 	)
