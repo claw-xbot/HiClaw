@@ -501,7 +501,7 @@ func applyZip(zipPath string, name string, dryRun bool) error {
 	switch manifestType {
 	case "worker":
 		kind = "worker"
-		yamlContent = fmt.Sprintf(`apiVersion: hiclaw.io/v1
+		yamlContent = fmt.Sprintf(`apiVersion: hiclaw.io/v1beta1
 kind: Worker
 metadata:
   name: %s
@@ -512,7 +512,7 @@ spec:
 
 	case "team":
 		kind = "team"
-		yamlContent = fmt.Sprintf(`apiVersion: hiclaw.io/v1
+		yamlContent = fmt.Sprintf(`apiVersion: hiclaw.io/v1beta1
 kind: Team
 metadata:
   name: %s

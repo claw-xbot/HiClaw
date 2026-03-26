@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/hiclaw/hiclaw-controller/api/v1"
+	v1beta1 "github.com/hiclaw/hiclaw-controller/api/v1beta1"
 	"github.com/hiclaw/hiclaw-controller/internal/executor"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,7 +24,7 @@ type HumanReconciler struct {
 func (r *HumanReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var human v1.Human
+	var human v1beta1.Human
 	if err := r.Get(ctx, req.NamespacedName, &human); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
@@ -62,7 +62,7 @@ func (r *HumanReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	}
 }
 
-func (r *HumanReconciler) handleCreate(ctx context.Context, h *v1.Human) (reconcile.Result, error) {
+func (r *HumanReconciler) handleCreate(ctx context.Context, h *v1beta1.Human) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("creating human", "name", h.Name)
 
@@ -134,12 +134,12 @@ func (r *HumanReconciler) handleCreate(ctx context.Context, h *v1.Human) (reconc
 	return reconcile.Result{}, nil
 }
 
-func (r *HumanReconciler) handleUpdate(ctx context.Context, h *v1.Human) (reconcile.Result, error) {
+func (r *HumanReconciler) handleUpdate(ctx context.Context, h *v1beta1.Human) (reconcile.Result, error) {
 	// TODO: detect permission level / accessible teams changes and reconfigure
 	return reconcile.Result{}, nil
 }
 
-func (r *HumanReconciler) handleDelete(ctx context.Context, h *v1.Human) error {
+func (r *HumanReconciler) handleDelete(ctx context.Context, h *v1beta1.Human) error {
 	logger := log.FromContext(ctx)
 	logger.Info("deleting human", "name", h.Name)
 
@@ -160,6 +160,6 @@ func (r *HumanReconciler) handleDelete(ctx context.Context, h *v1.Human) error {
 // SetupWithManager registers the HumanReconciler with the controller manager.
 func (r *HumanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1.Human{}).
+		For(&v1beta1.Human{}).
 		Complete(r)
 }

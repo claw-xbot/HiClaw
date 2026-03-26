@@ -1,12 +1,12 @@
 // +k8s:deepcopy-gen=package
 
-package v1
+package v1beta1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 const (
 	GroupName = "hiclaw.io"
-	Version   = "v1"
+	Version   = "v1beta1"
 )
 
 // +genclient

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	v1 "github.com/hiclaw/hiclaw-controller/api/v1"
+	v1beta1 "github.com/hiclaw/hiclaw-controller/api/v1beta1"
 	"github.com/hiclaw/hiclaw-controller/internal/apiserver"
 	"github.com/hiclaw/hiclaw-controller/internal/controller"
 	"github.com/hiclaw/hiclaw-controller/internal/executor"
@@ -63,7 +63,7 @@ func main() {
 	// Build scheme
 	scheme := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(scheme)
-	if err := v1.AddToScheme(scheme); err != nil {
+	if err := v1beta1.AddToScheme(scheme); err != nil {
 		logger.Error(err, "failed to add hiclaw types to scheme")
 		os.Exit(1)
 	}

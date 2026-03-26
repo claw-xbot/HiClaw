@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/hiclaw/hiclaw-controller/api/v1"
+	v1beta1 "github.com/hiclaw/hiclaw-controller/api/v1beta1"
 	"github.com/hiclaw/hiclaw-controller/internal/executor"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +31,7 @@ type WorkerReconciler struct {
 func (r *WorkerReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var worker v1.Worker
+	var worker v1beta1.Worker
 	if err := r.Get(ctx, req.NamespacedName, &worker); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
@@ -71,7 +71,7 @@ func (r *WorkerReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	}
 }
 
-func (r *WorkerReconciler) handleCreate(ctx context.Context, w *v1.Worker) (reconcile.Result, error) {
+func (r *WorkerReconciler) handleCreate(ctx context.Context, w *v1beta1.Worker) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("creating worker", "name", w.Name)
 
@@ -164,7 +164,7 @@ func (r *WorkerReconciler) handleCreate(ctx context.Context, w *v1.Worker) (reco
 	return reconcile.Result{}, nil
 }
 
-func (r *WorkerReconciler) handleUpdate(ctx context.Context, w *v1.Worker) (reconcile.Result, error) {
+func (r *WorkerReconciler) handleUpdate(ctx context.Context, w *v1beta1.Worker) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Compare current spec hash with stored hash
@@ -246,7 +246,7 @@ func (r *WorkerReconciler) handleUpdate(ctx context.Context, w *v1.Worker) (reco
 	return reconcile.Result{}, nil
 }
 
-func (r *WorkerReconciler) handleDelete(ctx context.Context, w *v1.Worker) error {
+func (r *WorkerReconciler) handleDelete(ctx context.Context, w *v1beta1.Worker) error {
 	logger := log.FromContext(ctx)
 	logger.Info("deleting worker", "name", w.Name)
 
@@ -273,7 +273,7 @@ func joinStrings(ss []string) string {
 	return result
 }
 
-func computeSpecHash(spec v1.WorkerSpec) string {
+func computeSpecHash(spec v1beta1.WorkerSpec) string {
 	data, _ := json.Marshal(spec)
 	h := sha256.Sum256(data)
 	return fmt.Sprintf("%x", h[:8])
@@ -289,6 +289,6 @@ func storagePrefix() string {
 // SetupWithManager registers the WorkerReconciler with the controller manager.
 func (r *WorkerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1.Worker{}).
+		For(&v1beta1.Worker{}).
 		Complete(r)
 }

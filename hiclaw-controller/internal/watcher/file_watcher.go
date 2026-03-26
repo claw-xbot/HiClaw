@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	v1 "github.com/hiclaw/hiclaw-controller/api/v1"
+	v1beta1 "github.com/hiclaw/hiclaw-controller/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
@@ -192,7 +192,7 @@ func (w *FileWatcher) syncFile(ctx context.Context, path string) error {
 }
 
 func (w *FileWatcher) upsertWorker(ctx context.Context, name string, data []byte) error {
-	var worker v1.Worker
+	var worker v1beta1.Worker
 	if err := yaml.Unmarshal(data, &worker); err != nil {
 		return fmt.Errorf("parse worker YAML: %w", err)
 	}
@@ -201,7 +201,7 @@ func (w *FileWatcher) upsertWorker(ctx context.Context, name string, data []byte
 		worker.Namespace = "default"
 	}
 
-	existing := &v1.Worker{}
+	existing := &v1beta1.Worker{}
 	err := w.Client.Get(ctx, client.ObjectKeyFromObject(&worker), existing)
 	if err != nil {
 		// Not found → create
@@ -213,7 +213,7 @@ func (w *FileWatcher) upsertWorker(ctx context.Context, name string, data []byte
 }
 
 func (w *FileWatcher) upsertTeam(ctx context.Context, name string, data []byte) error {
-	var team v1.Team
+	var team v1beta1.Team
 	if err := yaml.Unmarshal(data, &team); err != nil {
 		return fmt.Errorf("parse team YAML: %w", err)
 	}
@@ -222,7 +222,7 @@ func (w *FileWatcher) upsertTeam(ctx context.Context, name string, data []byte) 
 		team.Namespace = "default"
 	}
 
-	existing := &v1.Team{}
+	existing := &v1beta1.Team{}
 	err := w.Client.Get(ctx, client.ObjectKeyFromObject(&team), existing)
 	if err != nil {
 		return w.Client.Create(ctx, &team)
@@ -232,7 +232,7 @@ func (w *FileWatcher) upsertTeam(ctx context.Context, name string, data []byte) 
 }
 
 func (w *FileWatcher) upsertHuman(ctx context.Context, name string, data []byte) error {
-	var human v1.Human
+	var human v1beta1.Human
 	if err := yaml.Unmarshal(data, &human); err != nil {
 		return fmt.Errorf("parse human YAML: %w", err)
 	}
@@ -241,7 +241,7 @@ func (w *FileWatcher) upsertHuman(ctx context.Context, name string, data []byte)
 		human.Namespace = "default"
 	}
 
-	existing := &v1.Human{}
+	existing := &v1beta1.Human{}
 	err := w.Client.Get(ctx, client.ObjectKeyFromObject(&human), existing)
 	if err != nil {
 		return w.Client.Create(ctx, &human)
@@ -267,17 +267,17 @@ func (w *FileWatcher) handleDelete(ctx context.Context, path string) error {
 
 	switch kind {
 	case "worker":
-		obj := &v1.Worker{}
+		obj := &v1beta1.Worker{}
 		obj.Name = name
 		obj.Namespace = "default"
 		return client.IgnoreNotFound(w.Client.Delete(ctx, obj))
 	case "team":
-		obj := &v1.Team{}
+		obj := &v1beta1.Team{}
 		obj.Name = name
 		obj.Namespace = "default"
 		return client.IgnoreNotFound(w.Client.Delete(ctx, obj))
 	case "human":
-		obj := &v1.Human{}
+		obj := &v1beta1.Human{}
 		obj.Name = name
 		obj.Namespace = "default"
 		return client.IgnoreNotFound(w.Client.Delete(ctx, obj))

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/hiclaw/hiclaw-controller/api/v1"
+	v1beta1 "github.com/hiclaw/hiclaw-controller/api/v1beta1"
 	"github.com/hiclaw/hiclaw-controller/internal/executor"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,7 +25,7 @@ type TeamReconciler struct {
 func (r *TeamReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var team v1.Team
+	var team v1beta1.Team
 	if err := r.Get(ctx, req.NamespacedName, &team); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
@@ -63,7 +63,7 @@ func (r *TeamReconciler) Reconcile(ctx context.Context, req reconcile.Request) (
 	}
 }
 
-func (r *TeamReconciler) handleCreate(ctx context.Context, t *v1.Team) (reconcile.Result, error) {
+func (r *TeamReconciler) handleCreate(ctx context.Context, t *v1beta1.Team) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("creating team", "name", t.Name)
 
@@ -132,12 +132,12 @@ func (r *TeamReconciler) handleCreate(ctx context.Context, t *v1.Team) (reconcil
 	return reconcile.Result{}, nil
 }
 
-func (r *TeamReconciler) handleUpdate(ctx context.Context, t *v1.Team) (reconcile.Result, error) {
+func (r *TeamReconciler) handleUpdate(ctx context.Context, t *v1beta1.Team) (reconcile.Result, error) {
 	// TODO: detect worker list changes and add/remove workers
 	return reconcile.Result{}, nil
 }
 
-func (r *TeamReconciler) handleDelete(ctx context.Context, t *v1.Team) error {
+func (r *TeamReconciler) handleDelete(ctx context.Context, t *v1beta1.Team) error {
 	logger := log.FromContext(ctx)
 	logger.Info("deleting team", "name", t.Name)
 
@@ -165,6 +165,6 @@ func (r *TeamReconciler) handleDelete(ctx context.Context, t *v1.Team) error {
 // SetupWithManager registers the TeamReconciler with the controller manager.
 func (r *TeamReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1.Team{}).
+		For(&v1beta1.Team{}).
 		Complete(r)
 }
