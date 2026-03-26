@@ -59,8 +59,14 @@ type Team struct {
 
 type TeamSpec struct {
 	Description string           `json:"description,omitempty"`
+	Admin       *TeamAdminSpec   `json:"admin,omitempty"`
 	Leader      LeaderSpec       `json:"leader"`
 	Workers     []TeamWorkerSpec `json:"workers"`
+}
+
+type TeamAdminSpec struct {
+	Name         string `json:"name"`
+	MatrixUserID string `json:"matrixUserId,omitempty"`
 }
 
 type LeaderSpec struct {

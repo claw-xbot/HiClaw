@@ -18,6 +18,16 @@ spec:
               properties:
                 description:
                   type: string
+                admin:
+                  type: object
+                  description: "Team-specific admin (human). Has admin authority within this team."
+                  properties:
+                    name:
+                      type: string
+                      description: "Human name (must exist in humans-registry)"
+                    matrixUserId:
+                      type: string
+                      description: "Matrix user ID (e.g. @john:domain)"
                 leader:
                   type: object
                   required: [name]

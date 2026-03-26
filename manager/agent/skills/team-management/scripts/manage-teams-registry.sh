@@ -47,16 +47,21 @@ action_add() {
        --arg leader "$LEADER" \
        --argjson workers "$workers_json" \
        --arg room_id "${TEAM_ROOM_ID:-}" \
+       --arg admin_name "${TEAM_ADMIN:-}" \
+       --arg admin_matrix_id "${TEAM_ADMIN_MATRIX_ID:-}" \
+       --arg leader_dm_room_id "${LEADER_DM_ROOM_ID:-}" \
        --arg ts "$(_ts)" \
        '.teams[$name] = {
             leader: $leader,
             workers: $workers,
             team_room_id: (if $room_id == "" then null else $room_id end),
+            admin: (if $admin_name == "" then null else {name: $admin_name, matrix_user_id: (if $admin_matrix_id == "" then null else $admin_matrix_id end)} end),
+            leader_dm_room_id: (if $leader_dm_room_id == "" then null else $leader_dm_room_id end),
             created_at: (if .teams[$name].created_at? then .teams[$name].created_at else $ts end)
         } | .updated_at = $ts' \
        "$REGISTRY_FILE" > "$tmp" && mv "$tmp" "$REGISTRY_FILE"
 
-    echo "OK: added team $TEAM_NAME (leader=$LEADER, workers=${WORKERS})"
+    echo "OK: added team $TEAM_NAME (leader=$LEADER, workers=${WORKERS}, admin=${TEAM_ADMIN:-none})"
 }
 
 action_add_worker() {
@@ -126,15 +131,21 @@ LEADER=""
 WORKERS=""
 WORKER=""
 TEAM_ROOM_ID=""
+TEAM_ADMIN=""
+TEAM_ADMIN_MATRIX_ID=""
+LEADER_DM_ROOM_ID=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --action)        ACTION="$2";        shift 2 ;;
-        --team-name)     TEAM_NAME="$2";     shift 2 ;;
-        --leader)        LEADER="$2";        shift 2 ;;
-        --workers)       WORKERS="$2";       shift 2 ;;
-        --worker)        WORKER="$2";        shift 2 ;;
-        --team-room-id)  TEAM_ROOM_ID="$2";  shift 2 ;;
+        --action)              ACTION="$2";              shift 2 ;;
+        --team-name)           TEAM_NAME="$2";           shift 2 ;;
+        --leader)              LEADER="$2";              shift 2 ;;
+        --workers)             WORKERS="$2";             shift 2 ;;
+        --worker)              WORKER="$2";              shift 2 ;;
+        --team-room-id)        TEAM_ROOM_ID="$2";        shift 2 ;;
+        --team-admin)          TEAM_ADMIN="$2";          shift 2 ;;
+        --team-admin-matrix-id) TEAM_ADMIN_MATRIX_ID="$2"; shift 2 ;;
+        --leader-dm-room-id)   LEADER_DM_ROOM_ID="$2";  shift 2 ;;
         *)
             echo "Unknown argument: $1" >&2
             exit 1

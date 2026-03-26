@@ -33,6 +33,8 @@ LEADER_NAME=""
 WORKERS_CSV=""
 LEADER_MODEL=""
 WORKER_MODELS_CSV=""
+TEAM_ADMIN=""
+TEAM_ADMIN_MATRIX_ID=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -41,12 +43,14 @@ while [ $# -gt 0 ]; do
         --workers)        WORKERS_CSV="$2"; shift 2 ;;
         --leader-model)   LEADER_MODEL="$2"; shift 2 ;;
         --worker-models)  WORKER_MODELS_CSV="$2"; shift 2 ;;
+        --team-admin)     TEAM_ADMIN="$2"; shift 2 ;;
+        --team-admin-matrix-id) TEAM_ADMIN_MATRIX_ID="$2"; shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
 if [ -z "${TEAM_NAME}" ] || [ -z "${LEADER_NAME}" ] || [ -z "${WORKERS_CSV}" ]; then
-    echo "Usage: create-team.sh --name <TEAM> --leader <LEADER> --workers <w1,w2,...> [--leader-model MODEL] [--worker-models m1,m2,...]"
+    echo "Usage: create-team.sh --name <TEAM> --leader <LEADER> --workers <w1,w2,...> [--leader-model MODEL] [--worker-models m1,m2,...] [--team-admin NAME] [--team-admin-matrix-id @user:domain]"
     exit 1
 fi
 
@@ -60,6 +64,7 @@ ADMIN_USER="${HICLAW_ADMIN_USER:-admin}"
 log "=== Creating Team: ${TEAM_NAME} ==="
 log "  Leader: ${LEADER_NAME}"
 log "  Workers: ${WORKERS_CSV}"
+log "  Team Admin: ${TEAM_ADMIN:-none}"
 
 # ============================================================
 # Ensure credentials
@@ -128,23 +133,45 @@ for i in "${!WORKER_NAMES[@]}"; do
 done
 
 # ============================================================
-# Step 3: Create Team Room (Leader + Admin + all Workers)
+# Step 3: Create Team Room (Leader + Team Admin + all Workers)
+# No Global Admin, no Manager — Team Admin is the authority here
 # ============================================================
 log "Step 3: Creating Team Room..."
 MANAGER_MATRIX_ID="@manager:${MATRIX_DOMAIN}"
 ADMIN_MATRIX_ID="@${ADMIN_USER}:${MATRIX_DOMAIN}"
 LEADER_MATRIX_ID="@${LEADER_NAME}:${MATRIX_DOMAIN}"
 
-# Build invite list: Admin + Leader + all workers
-INVITE_LIST="\"${ADMIN_MATRIX_ID}\",\"${LEADER_MATRIX_ID}\""
+# Resolve Team Admin Matrix ID (default to Global Admin if not specified)
+TEAM_ADMIN_MID=""
+if [ -n "${TEAM_ADMIN}" ]; then
+    if [ -n "${TEAM_ADMIN_MATRIX_ID}" ]; then
+        TEAM_ADMIN_MID="${TEAM_ADMIN_MATRIX_ID}"
+    else
+        TEAM_ADMIN_MID="@${TEAM_ADMIN}:${MATRIX_DOMAIN}"
+    fi
+else
+    # Default: use Global Admin as Team Admin
+    TEAM_ADMIN="${ADMIN_USER}"
+    TEAM_ADMIN_MID="@${ADMIN_USER}:${MATRIX_DOMAIN}"
+    log "  No --team-admin specified, defaulting to Global Admin (${ADMIN_USER})"
+fi
+
+# Build invite list: Leader + Team Admin (if set) + all workers
+INVITE_LIST="\"${LEADER_MATRIX_ID}\""
+if [ -n "${TEAM_ADMIN_MID}" ]; then
+    INVITE_LIST="${INVITE_LIST},\"${TEAM_ADMIN_MID}\""
+fi
 for w_name in "${WORKER_NAMES[@]}"; do
     w_name=$(echo "${w_name}" | tr -d ' ')
     [ -z "${w_name}" ] && continue
     INVITE_LIST="${INVITE_LIST},\"@${w_name}:${MATRIX_DOMAIN}\""
 done
 
-# Build power levels: Leader=100, Admin=100, Workers=0
-POWER_USERS="\"${MANAGER_MATRIX_ID}\": 100, \"${ADMIN_MATRIX_ID}\": 100, \"${LEADER_MATRIX_ID}\": 100"
+# Build power levels: Leader=100, Team Admin=100 (if set), Workers=0
+POWER_USERS="\"${MANAGER_MATRIX_ID}\": 100, \"${LEADER_MATRIX_ID}\": 100"
+if [ -n "${TEAM_ADMIN_MID}" ]; then
+    POWER_USERS="${POWER_USERS}, \"${TEAM_ADMIN_MID}\": 100"
+fi
 for w_name in "${WORKER_NAMES[@]}"; do
     w_name=$(echo "${w_name}" | tr -d ' ')
     [ -z "${w_name}" ] && continue
@@ -177,7 +204,7 @@ fi
 log "  Team Room created: ${TEAM_ROOM_ID}"
 
 # ============================================================
-# Step 4: Update Leader's groupAllowFrom to include all team workers
+# Step 4: Update Leader's groupAllowFrom to include team workers + Team Admin
 # ============================================================
 log "Step 4: Updating Leader's groupAllowFrom..."
 LEADER_CONFIG="/root/hiclaw-fs/agents/${LEADER_NAME}/openclaw.json"
@@ -193,7 +220,22 @@ if [ -f "${LEADER_CONFIG}" ]; then
             "${LEADER_CONFIG}" > /tmp/leader-config-tmp.json
         mv /tmp/leader-config-tmp.json "${LEADER_CONFIG}"
     done
-    log "  Leader groupAllowFrom updated with all team workers"
+
+    # Add Team Admin to Leader's groupAllowFrom
+    if [ -n "${TEAM_ADMIN_MID}" ]; then
+        jq --arg a "${TEAM_ADMIN_MID}" \
+            'if (.channels.matrix.groupAllowFrom | index($a)) then .
+             else .channels.matrix.groupAllowFrom += [$a]
+             end
+             | if (.channels.matrix.dm.allowFrom | index($a)) then .
+               else .channels.matrix.dm.allowFrom += [$a]
+               end' \
+            "${LEADER_CONFIG}" > /tmp/leader-config-tmp.json
+        mv /tmp/leader-config-tmp.json "${LEADER_CONFIG}"
+        log "  Added Team Admin to Leader's groupAllowFrom + dm.allowFrom"
+    fi
+
+    log "  Leader groupAllowFrom updated"
 
     # Push updated config to MinIO
     ensure_mc_credentials 2>/dev/null || true
@@ -201,16 +243,81 @@ if [ -f "${LEADER_CONFIG}" ]; then
         || log "  WARNING: Failed to push leader config to MinIO"
 fi
 
+# Add Team Admin to each Worker's groupAllowFrom
+if [ -n "${TEAM_ADMIN_MID}" ]; then
+    log "  Adding Team Admin to Workers' groupAllowFrom..."
+    for w_name in "${WORKER_NAMES[@]}"; do
+        w_name=$(echo "${w_name}" | tr -d ' ')
+        [ -z "${w_name}" ] && continue
+        W_CONFIG="/root/hiclaw-fs/agents/${w_name}/openclaw.json"
+        if [ -f "${W_CONFIG}" ]; then
+            jq --arg a "${TEAM_ADMIN_MID}" \
+                'if (.channels.matrix.groupAllowFrom | index($a)) then .
+                 else .channels.matrix.groupAllowFrom += [$a]
+                 end' \
+                "${W_CONFIG}" > /tmp/worker-config-tmp.json
+            mv /tmp/worker-config-tmp.json "${W_CONFIG}"
+            mc cp "${W_CONFIG}" "${HICLAW_STORAGE_PREFIX}/agents/${w_name}/openclaw.json" 2>/dev/null \
+                || log "  WARNING: Failed to push ${w_name} config to MinIO"
+        fi
+    done
+    log "  Team Admin added to all Workers' groupAllowFrom"
+fi
+
+# ============================================================
+# Step 4b: Create Leader DM room (Team Admin ↔ Leader)
+# ============================================================
+LEADER_DM_ROOM_ID=""
+if [ -n "${TEAM_ADMIN_MID}" ]; then
+    log "Step 4b: Creating Leader DM room (Team Admin ↔ Leader)..."
+    LEADER_DM_RESP=$(curl -sf -X POST ${HICLAW_MATRIX_SERVER}/_matrix/client/v3/createRoom \
+        -H "Authorization: Bearer ${MANAGER_MATRIX_TOKEN}" \
+        -H 'Content-Type: application/json' \
+        -d '{
+            "name": "Team Admin DM: '"${TEAM_NAME}"'",
+            "topic": "Direct channel between Team Admin and Leader of '"${TEAM_NAME}"'",
+            "invite": ["'"${TEAM_ADMIN_MID}"'", "'"${LEADER_MATRIX_ID}"'"],
+            "preset": "trusted_private_chat",
+            "power_level_content_override": {
+                "users": {
+                    "'"${MANAGER_MATRIX_ID}"'": 100,
+                    "'"${TEAM_ADMIN_MID}"'": 100,
+                    "'"${LEADER_MATRIX_ID}"'": 0
+                }
+            }'"${ROOM_E2EE_INITIAL_STATE}"'
+        }' 2>/dev/null) || log "  WARNING: Failed to create Leader DM room"
+
+    LEADER_DM_ROOM_ID=$(echo "${LEADER_DM_RESP}" | jq -r '.room_id // empty')
+    if [ -n "${LEADER_DM_ROOM_ID}" ]; then
+        log "  Leader DM room created: ${LEADER_DM_ROOM_ID}"
+    else
+        log "  WARNING: Could not extract Leader DM room_id"
+    fi
+else
+    log "Step 4b: No Team Admin specified, skipping Leader DM room"
+fi
+
 # ============================================================
 # Step 5: Update teams-registry.json
 # ============================================================
 log "Step 5: Updating teams-registry.json..."
-bash /opt/hiclaw/agent/skills/team-management/scripts/manage-teams-registry.sh \
-    --action add \
-    --team-name "${TEAM_NAME}" \
-    --leader "${LEADER_NAME}" \
-    --workers "${WORKERS_CSV}" \
+REGISTRY_ARGS=(
+    --action add
+    --team-name "${TEAM_NAME}"
+    --leader "${LEADER_NAME}"
+    --workers "${WORKERS_CSV}"
     --team-room-id "${TEAM_ROOM_ID}"
+)
+if [ -n "${TEAM_ADMIN}" ]; then
+    REGISTRY_ARGS+=(--team-admin "${TEAM_ADMIN}")
+fi
+if [ -n "${TEAM_ADMIN_MID}" ]; then
+    REGISTRY_ARGS+=(--team-admin-matrix-id "${TEAM_ADMIN_MID}")
+fi
+if [ -n "${LEADER_DM_ROOM_ID}" ]; then
+    REGISTRY_ARGS+=(--leader-dm-room-id "${LEADER_DM_ROOM_ID}")
+fi
+bash /opt/hiclaw/agent/skills/team-management/scripts/manage-teams-registry.sh "${REGISTRY_ARGS[@]}"
 
 # ============================================================
 # Output JSON result
@@ -228,12 +335,18 @@ RESULT=$(jq -n \
     --arg leader "${LEADER_NAME}" \
     --arg leader_room "${LEADER_ROOM_ID}" \
     --arg team_room "${TEAM_ROOM_ID}" \
+    --arg leader_dm_room "${LEADER_DM_ROOM_ID:-}" \
+    --arg team_admin "${TEAM_ADMIN:-}" \
+    --arg team_admin_mid "${TEAM_ADMIN_MID:-}" \
     --argjson workers "${WORKERS_JSON}" \
     '{
         team_name: $team,
         leader: $leader,
         leader_room_id: $leader_room,
         team_room_id: $team_room,
+        leader_dm_room_id: (if $leader_dm_room == "" then null else $leader_dm_room end),
+        team_admin: (if $team_admin == "" then null else $team_admin end),
+        team_admin_matrix_id: (if $team_admin_mid == "" then null else $team_admin_mid end),
         workers: $workers
     }')
 

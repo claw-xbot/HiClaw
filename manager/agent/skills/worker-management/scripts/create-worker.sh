@@ -462,9 +462,19 @@ if [ -d "${WORKER_AGENT_SRC}" ]; then
 
     # Inject team-context coordination block into AGENTS.md
     # This tells the worker who their coordinator is (Manager or Team Leader)
+    # and who the Team Admin is (if applicable)
     log "  Injecting coordination context..."
     _agents_minio_path="${HICLAW_STORAGE_PREFIX}/agents/${WORKER_NAME}/AGENTS.md"
     _ctx_tmp=$(mktemp /tmp/team-ctx-XXXXXX.md)
+
+    # Look up Team Admin from teams-registry if in a team
+    _team_admin_mid=""
+    if [ -n "${TEAM_NAME}" ]; then
+        _teams_reg="${HOME}/teams-registry.json"
+        if [ -f "${_teams_reg}" ]; then
+            _team_admin_mid=$(jq -r --arg t "${TEAM_NAME}" '.teams[$t].admin.matrix_user_id // empty' "${_teams_reg}" 2>/dev/null)
+        fi
+    fi
 
     if [ -n "${TEAM_LEADER_NAME}" ]; then
         # Team Worker: coordinator is Team Leader
@@ -474,8 +484,9 @@ if [ -d "${WORKER_AGENT_SRC}" ]; then
 ## Coordination
 
 - **Coordinator**: @${TEAM_LEADER_NAME}:${MATRIX_DOMAIN} (Team Leader of ${TEAM_NAME})
+$([ -n "${_team_admin_mid}" ] && echo "- **Team Admin**: ${_team_admin_mid} (has admin authority within this team)")
 - Report task completion, blockers, and questions to your coordinator
-- Only respond to @mentions from your coordinator and Admin
+- Respond to @mentions from your coordinator$([ -n "${_team_admin_mid}" ] && echo ", Team Admin,") and global Admin
 - Do NOT @mention Manager directly — all communication goes through your Team Leader
 <!-- hiclaw-team-context-end -->
 TEAMCTX
@@ -487,6 +498,7 @@ TEAMCTX
 ## Coordination
 
 - **Upstream coordinator**: @manager:${MATRIX_DOMAIN} (Manager) — you receive tasks from Manager
+$([ -n "${_team_admin_mid}" ] && echo "- **Team Admin**: ${_team_admin_mid} — can assign tasks and make decisions within the team")
 - **Team**: ${TEAM_NAME}
 - You decompose tasks from Manager and assign sub-tasks to your team workers
 - Report aggregated results to Manager when all sub-tasks complete
