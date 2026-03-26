@@ -9,7 +9,8 @@ ARG HIGRESS_REGISTRY=higress-registry.cn-hangzhou.cr.aliyuncs.com
 # ============ Stage 1: Build Go binaries ============
 FROM ${HIGRESS_REGISTRY}/higress/golang:1.23-alpine AS builder
 
-ENV GOPROXY=https://goproxy.cn,direct
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
 RUN apk add --no-cache gcc musl-dev
 
 WORKDIR /build

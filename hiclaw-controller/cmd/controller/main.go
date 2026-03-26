@@ -107,7 +107,7 @@ func main() {
 		mgr, err = ctrl.NewManager(restCfg, ctrl.Options{
 			Scheme: scheme,
 			Metrics: metricsserver.Options{
-				BindAddress: "0", // disable metrics server (port 8080 conflicts with Higress)
+				BindAddress: "0", // hiclaw-controller only does config reconcile, no metrics needed
 			},
 		})
 		if err != nil {
