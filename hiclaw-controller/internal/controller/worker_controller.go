@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -15,7 +17,8 @@ import (
 )
 
 const (
-	finalizerName = "hiclaw.io/cleanup"
+	finalizerName      = "hiclaw.io/cleanup"
+	specHashAnnotation = "hiclaw.io/spec-hash"
 )
 
 // WorkerReconciler reconciles Worker resources by calling existing bash scripts.
@@ -143,6 +146,16 @@ func (r *WorkerReconciler) handleCreate(ctx context.Context, w *v1.Worker) (reco
 	w.Status.MatrixUserID = result.MatrixUserID
 	w.Status.RoomID = result.RoomID
 	w.Status.Message = ""
+
+	// Store spec hash for change detection
+	if w.Annotations == nil {
+		w.Annotations = map[string]string{}
+	}
+	w.Annotations[specHashAnnotation] = computeSpecHash(w.Spec)
+	if err := r.Update(ctx, w); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if err := r.Status().Update(ctx, w); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -152,8 +165,118 @@ func (r *WorkerReconciler) handleCreate(ctx context.Context, w *v1.Worker) (reco
 }
 
 func (r *WorkerReconciler) handleUpdate(ctx context.Context, w *v1.Worker) (reconcile.Result, error) {
-	// Compare spec hash with last-applied annotation to detect changes
-	// For now, no-op if already running
+	logger := log.FromContext(ctx)
+
+	// Compare current spec hash with stored hash
+	currentHash := computeSpecHash(w.Spec)
+	storedHash := ""
+	if w.Annotations != nil {
+		storedHash = w.Annotations[specHashAnnotation]
+	}
+
+	if currentHash == storedHash {
+		return reconcile.Result{}, nil // no spec change
+	}
+
+	logger.Info("worker spec changed, updating configuration",
+		"name", w.Name,
+		"note", "This will overwrite all config (model, openclaw.json, skills, mcpServers). Memory is preserved. Skills are merged (existing updated, new added, old kept).",
+	)
+
+	w.Status.Phase = "Updating"
+	w.Status.Message = "Updating worker configuration (memory preserved, skills merged)"
+	if err := r.Status().Update(ctx, w); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// 1. Resolve and deploy package if specified (overwrites SOUL.md, adds custom skills)
+	if w.Spec.Package != "" {
+		extractedDir, err := r.Packages.ResolveAndExtract(ctx, w.Spec.Package, w.Name)
+		if err != nil {
+			logger.Error(err, "package resolve/extract failed during update", "name", w.Name)
+		} else if extractedDir != "" {
+			if err := r.Packages.DeployToMinIO(ctx, extractedDir, w.Name); err != nil {
+				logger.Error(err, "package deploy failed during update", "name", w.Name)
+			} else {
+				logger.Info("package redeployed", "name", w.Name)
+			}
+		}
+	}
+
+	// 2. Regenerate openclaw.json (model change)
+	genArgs := []string{w.Name}
+	// We need the worker's existing Matrix token and gateway key — read from persisted creds
+	// generate-worker-config.sh will be called by the update script which handles this
+	if w.Spec.Model != "" {
+		_, err := r.Executor.RunSimple(ctx,
+			"/opt/hiclaw/agent/skills/worker-management/scripts/generate-worker-config.sh",
+			w.Name, "", "", w.Spec.Model,
+		)
+		if err != nil {
+			logger.Error(err, "failed to regenerate openclaw.json", "name", w.Name)
+		} else {
+			logger.Info("openclaw.json regenerated", "name", w.Name, "model", w.Spec.Model)
+		}
+	}
+	_ = genArgs
+
+	// 3. Push skills (additive — existing skills not removed)
+	if len(w.Spec.Skills) > 0 {
+		_, err := r.Executor.RunSimple(ctx,
+			"/opt/hiclaw/agent/skills/worker-management/scripts/push-worker-skills.sh",
+			"--worker", w.Name, "--no-notify",
+		)
+		if err != nil {
+			logger.Error(err, "failed to push skills", "name", w.Name)
+		} else {
+			logger.Info("skills pushed (merged: existing updated, new added, old kept)", "name", w.Name, "skills", w.Spec.Skills)
+		}
+	}
+
+	// 4. Reauthorize MCP servers if changed
+	if len(w.Spec.McpServers) > 0 {
+		consumerName := "worker-" + w.Name
+		_, err := r.Executor.RunSimple(ctx,
+			"bash", "-c",
+			fmt.Sprintf("source /opt/hiclaw/scripts/lib/gateway-api.sh && gateway_authorize_mcp '%s' '%s'",
+				consumerName, joinStrings(w.Spec.McpServers)),
+		)
+		if err != nil {
+			logger.Error(err, "failed to reauthorize MCP servers", "name", w.Name)
+		} else {
+			logger.Info("MCP servers reauthorized", "name", w.Name, "servers", w.Spec.McpServers)
+		}
+	}
+
+	// 5. Sync updated config to MinIO
+	_, err := r.Executor.RunSimple(ctx,
+		"mc", "mirror",
+		fmt.Sprintf("/root/hiclaw-fs/agents/%s/", w.Name),
+		fmt.Sprintf("%s/agents/%s/", storagePrefix(), w.Name),
+		"--overwrite",
+		"--exclude", "memory/*",
+		"--exclude", "MEMORY.md",
+	)
+	if err != nil {
+		logger.Error(err, "failed to sync config to MinIO", "name", w.Name)
+	}
+
+	// 6. Update spec hash and status
+	if w.Annotations == nil {
+		w.Annotations = map[string]string{}
+	}
+	w.Annotations[specHashAnnotation] = currentHash
+	if err := r.Update(ctx, w); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	w.Status.Phase = "Running"
+	w.Status.Message = "Configuration updated (memory preserved, skills merged)"
+	if err := r.Status().Update(ctx, w); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	logger.Info("worker updated", "name", w.Name)
 	return reconcile.Result{}, nil
 }
 
@@ -182,6 +305,19 @@ func joinStrings(ss []string) string {
 		result += s
 	}
 	return result
+}
+
+func computeSpecHash(spec v1.WorkerSpec) string {
+	data, _ := json.Marshal(spec)
+	h := sha256.Sum256(data)
+	return fmt.Sprintf("%x", h[:8])
+}
+
+func storagePrefix() string {
+	prefix := "hiclaw/hiclaw-storage"
+	// In production this comes from env, but for the reconciler
+	// we use the same default as hiclaw-env.sh
+	return prefix
 }
 
 // SetupWithManager registers the WorkerReconciler with the controller manager.

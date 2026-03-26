@@ -137,6 +137,12 @@ func applyEmbedded(resources []resource, prune, dryRun, yes bool) error {
 		action := "created"
 		if existErr == nil {
 			action = "configured"
+			if kind == "worker" || kind == "team" {
+				fmt.Printf("  WARNING: %s/%s already exists. This update will:\n", r.Kind, r.Name)
+				fmt.Printf("    - Overwrite all config (model, openclaw.json, SOUL.md)\n")
+				fmt.Printf("    - Skills: merged (existing updated, new added, old kept)\n")
+				fmt.Printf("    - Memory: preserved (MEMORY.md and memory/ NOT overwritten)\n")
+			}
 		}
 
 		if dryRun {
@@ -531,6 +537,10 @@ spec:
 	action := "created"
 	if existErr == nil {
 		action = "updated"
+		fmt.Printf("  WARNING: %s/%s already exists. This update will:\n", kind, name)
+		fmt.Printf("    - Overwrite all config (model, openclaw.json, SOUL.md)\n")
+		fmt.Printf("    - Skills: additive only (new skills added, existing skills NOT removed)\n")
+		fmt.Printf("    - Memory: preserved (MEMORY.md and memory/ NOT overwritten)\n")
 	}
 
 	// 6. Write generated YAML to MinIO hiclaw-config/{kind}s/{name}.yaml
