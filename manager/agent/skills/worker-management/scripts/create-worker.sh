@@ -460,6 +460,73 @@ if [ -d "${WORKER_AGENT_SRC}" ]; then
         "${WORKER_AGENT_SRC}/AGENTS.md" \
         || log "  WARNING: Failed to merge AGENTS.md"
 
+    # Inject team-context coordination block into AGENTS.md
+    # This tells the worker who their coordinator is (Manager or Team Leader)
+    log "  Injecting coordination context..."
+    _agents_minio_path="${HICLAW_STORAGE_PREFIX}/agents/${WORKER_NAME}/AGENTS.md"
+    _ctx_tmp=$(mktemp /tmp/team-ctx-XXXXXX.md)
+
+    if [ -n "${TEAM_LEADER_NAME}" ]; then
+        # Team Worker: coordinator is Team Leader
+        cat > "${_ctx_tmp}" <<TEAMCTX
+
+<!-- hiclaw-team-context-start -->
+## Coordination
+
+- **Coordinator**: @${TEAM_LEADER_NAME}:${MATRIX_DOMAIN} (Team Leader of ${TEAM_NAME})
+- Report task completion, blockers, and questions to your coordinator
+- Only respond to @mentions from your coordinator and Admin
+- Do NOT @mention Manager directly — all communication goes through your Team Leader
+<!-- hiclaw-team-context-end -->
+TEAMCTX
+    elif [ "${WORKER_ROLE}" = "team_leader" ]; then
+        # Team Leader: upstream is Manager, downstream is team workers
+        cat > "${_ctx_tmp}" <<LEADERCTX
+
+<!-- hiclaw-team-context-start -->
+## Coordination
+
+- **Upstream coordinator**: @manager:${MATRIX_DOMAIN} (Manager) — you receive tasks from Manager
+- **Team**: ${TEAM_NAME}
+- You decompose tasks from Manager and assign sub-tasks to your team workers
+- Report aggregated results to Manager when all sub-tasks complete
+- @mention Manager only for: task completion, blockers, escalations
+<!-- hiclaw-team-context-end -->
+LEADERCTX
+    else
+        # Standalone Worker: coordinator is Manager
+        cat > "${_ctx_tmp}" <<STDCTX
+
+<!-- hiclaw-team-context-start -->
+## Coordination
+
+- **Coordinator**: @manager:${MATRIX_DOMAIN} (Manager)
+- Report task completion, blockers, and questions to your coordinator
+- Only respond to @mentions from your coordinator and Admin
+<!-- hiclaw-team-context-end -->
+STDCTX
+    fi
+
+    # Pull current AGENTS.md, inject context block, push back
+    _agents_tmp=$(mktemp /tmp/agents-ctx-XXXXXX.md)
+    if mc cp "${_agents_minio_path}" "${_agents_tmp}" 2>/dev/null; then
+        # Remove any existing team-context block first
+        sed -i '/<!-- hiclaw-team-context-start -->/,/<!-- hiclaw-team-context-end -->/d' "${_agents_tmp}" 2>/dev/null || true
+        # Insert after builtin-end marker
+        if grep -q 'hiclaw-builtin-end' "${_agents_tmp}"; then
+            sed -i "/<!-- hiclaw-builtin-end -->/r ${_ctx_tmp}" "${_agents_tmp}"
+        else
+            # No builtin markers — append to end
+            cat "${_ctx_tmp}" >> "${_agents_tmp}"
+        fi
+        mc cp "${_agents_tmp}" "${_agents_minio_path}" 2>/dev/null \
+            || log "  WARNING: Failed to push coordination context to MinIO"
+        log "  Coordination context injected"
+    else
+        log "  WARNING: Could not pull AGENTS.md for context injection"
+    fi
+    rm -f "${_ctx_tmp}" "${_agents_tmp}"
+
     # Push all builtin skills from runtime-specific agent dir
     if [ -d "${WORKER_AGENT_SRC}/skills" ]; then
         for _skill_dir in "${WORKER_AGENT_SRC}/skills"/*/; do
